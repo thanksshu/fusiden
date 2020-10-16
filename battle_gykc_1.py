@@ -1,5 +1,5 @@
 '''
-诡疫狂潮-1
+诡疫狂潮-1-打捞
 '''
 from functools import partial
 from random import SystemRandom
@@ -63,15 +63,95 @@ def tap_airport():
     gf.tap(1062, 616)
 
 
-task_deassembly = action.task_deassembly(gf)
+task_gykc_1 = list()
+task_deassembly = list()
 
-task_gykc_1 = GFControl.generate_task_chain(
+task_deassembly.extend(
     [
+        # 点击拆解tab
+        [
+            {
+                'type': 'break_case',
+                'match': r'预加载结束',
+                'target': partial(action.tap_deassembly_tab, gf),
+                'next': 'next'
+            }
+        ],
+        # 点击选择人形
+        [
+            {
+                'type': 'default',
+                'target': partial(action.tap_choose_doll_tab, gf),
+                'next': 'next'
+            }
+        ],
+        # 点击智能选择
+        [
+            {
+                'type': 'case',
+                'target': 'pass',
+                'match': r'.*实例化数目0'
+            },
+            {
+                'type': 'break_case',
+                'match': r'加载Resource预制物',
+                'target': partial(action.tap_smart_choose_doll_btn, gf),
+                'next': 'next'
+            }
+        ],
+        # 点击确定
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*实例化数目0销毁数目0',
+                'target': partial(action.tap_smart_choose_doll_btn, gf),
+                'next': 'next'
+            }
+        ],
+        # 点击拆解
+        [
+            {
+                'type': 'default',
+                'target': partial(action.tap_deassemble_btn, gf),
+                'next': 'next'
+            }
+        ],
+        # 拆解结束，打开快捷菜单
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*retireGun',
+                'target': partial(action.tap_shortcut_menu, gf),
+                'next': 'next'
+            }
+        ],
+        # 菜单弹出，点击战斗
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*RefreshRewardMail',
+                'target': partial(action.tap_battle_btn, gf),
+                'next': 'next'
+            }
+        ],
         [
             {
                 'type': 'break_case',
                 'match': r'.*TeamSelectionCharacterLabel',
                 'target': partial(action.tap_left_first, gf),
+                'next': (task_gykc_1, 0)
+            }
+        ]
+    ]
+)
+
+task_gykc_1.extend(
+    [
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*选择章节-34',
+                'target': 'pass',
                 'next': 'next'
             }
         ],
@@ -107,8 +187,8 @@ task_gykc_1 = GFControl.generate_task_chain(
                 'type': 'break_case',
                 'match': r'.*RevertcanvasMissionInfo',
                 'target': partial(
-                        action.tap_go_for_enhance, gf),
-                'next': task_deassembly[0]
+                    action.tap_go_for_enhance, gf),
+                'next': (task_deassembly, 0)
             },
             # 初始化地图
             {
@@ -305,11 +385,11 @@ task_gykc_1 = GFControl.generate_task_chain(
             {
                 'type': 'default',
                 'target': partial(action.tap_somewhere, gf, 1),
-                'next': 1
+                'next': 0
             }
         ]
     ]
 )
 
-task_deassembly[-1][0]['next'] = task_gykc_1[0]
-gf.run_task(task_gykc_1[2],block_timeout=8)
+task_deassembly[-1][0]['next'] = (task_gykc_1, 0)
+gf.run_task((task_gykc_1, 2), block_timeout=8)

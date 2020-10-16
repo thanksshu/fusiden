@@ -1,3 +1,6 @@
+'''
+0-2自动打捞
+'''
 from functools import partial
 from random import SystemRandom
 
@@ -5,6 +8,7 @@ import action
 from gfcontrol import GFControl
 
 random = SystemRandom()
+
 
 # 初始化地图
 @action.log_func
@@ -56,9 +60,11 @@ def tap_ehq(gfcontrol: GFControl):
 GFControl.adbpath = '/home/thanksshu/Android/sdk/platform-tools/adb'
 gf = GFControl(device_id='39V4C19114019806')
 
-task_deassembly = action.task_deassembly(gf)
+task_0_2 = list()
 
-task_battle = GFControl.generate_task_chain(
+task_deassembly = action.task_deassembly(gf, (task_0_2, 0))
+
+task_0_2.extend(
     [
         [
             {
@@ -92,7 +98,7 @@ task_battle = GFControl.generate_task_chain(
                 'match': r'.*RevertcanvasMissionInfo',
                 'target': partial(
                     action.tap_go_for_enhance, gf),
-                'next': task_deassembly[0]
+                'next': (task_deassembly, 0)
             }
         ],
         # 初始化地图
@@ -311,6 +317,5 @@ task_battle = GFControl.generate_task_chain(
     ]
 )
 
-task_deassembly[-1][0]['next'] = task_battle[0]
 
-gf.run_task(task_battle[0])
+gf.run_task((task_0_2, 0))

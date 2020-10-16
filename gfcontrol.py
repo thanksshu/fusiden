@@ -8,9 +8,6 @@ import subprocess
 import threading
 from random import SystemRandom
 
-import cv2
-import numpy as np
-
 random = SystemRandom()
 
 
@@ -67,18 +64,6 @@ class AndroidControl():
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE, **kwarg)
         return popen
-
-    def cap_screen(self):
-        '''
-        get screenshot
-        '''
-        cmd = f'{self.adbpath} -s {self.device_id} exec-out screencap -p'
-        result = subprocess.run(shlex.split(cmd),
-                                capture_output=True, check=True)
-        # bytes to opencv image
-        image = cv2.imdecode(np.fromstring(
-            result.stdout, np.uint8), cv2.IMREAD_COLOR)
-        return image
 
     def get_time(self):
         '''
@@ -138,22 +123,6 @@ class AndroidControl():
                         duration=duration, delta=delta)
         return proc
 
-    def match_img(self, img_matrix):
-        '''
-        匹配图片
-        '''
-        screenshot = self.cap_screen()
-        template_gray = cv2.cvtColor(img_matrix, cv2.COLOR_BGR2GRAY)
-        screenshot_gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
-
-        height, width = template_gray.shape
-        res = cv2.matchTemplate(
-            screenshot_gray, template_gray, cv2.TM_CCOEFF_NORMED)
-        max_val, max_loc = cv2.minMaxLoc(res)[1::2]
-        top_left = max_loc
-        bottom_right = (top_left[0] + width, top_left[1] + height)
-        return *top_left, *bottom_right, max_val
-
 
 class GFControl(AndroidControl):
     '''
@@ -164,60 +133,7 @@ class GFControl(AndroidControl):
         super().__init__(device_index=device_index, device_id=device_id)
         self.logcat_queue = queue.Queue()
 
-    @staticmethod
-    def generate_task_chain(task_chain):
-        '''
-        generate a task chain
-        '''
-        chain = [[] for _ in task_chain]
-        for (index, chained_task) in enumerate(chain):
-            for condition in task_chain[index]:
-                # check cond type
-                if condition['type'] not in ['case', 'break_case', 'default']:
-                    raise ValueError(
-                        'value must be \'case\', \'break_case\' or \'default\'')
-
-                # check match
-                if 'match' in condition:
-                    match = re.compile(condition['match'])
-                elif condition['type'] == 'default':
-                    match = None
-
-                # check target
-                if condition['target'] == 'pass':
-                    target = lambda *arg: None
-                else:
-                    target = condition['target']
-
-                # check next
-                if 'next' in condition:
-                    if isinstance(condition['next'], int):
-                        next_task = chain[condition['next']]
-                    elif isinstance(condition['next'], list):
-                        next_task = condition['next']
-                    elif isinstance(condition['next'], str):
-                        if condition['next'] == 'next':
-                            next_task = chain[index + 1]
-                        elif condition['next'] == 'self':
-                            next_task = chained_task
-                        else:
-                            raise ValueError(
-                                'value must be \'self\' or \'next\'')
-                elif condition['type'] == 'case':
-                    next_task = None
-
-                # init the cond
-                cond = {
-                    'type': condition['type'],
-                    'match': match,
-                    'target': target,
-                    'next': next_task
-                }
-                # append the cond
-                chained_task.append(cond)
-        return chain
-
-    def run_task(self, entrance, block_timeout=15):
+    def run_task(self, task, block_timeout=15):
         '''
         run a serials of task
         '''
@@ -269,44 +185,85 @@ class GFControl(AndroidControl):
 
             return
 
-        def exec_cond(index):
+        def exec_cond(cond_index):
             '''
             match log with a condition and do target
             '''
-            nonlocal pre_target, task
-            cond = task[index]
-            cond['target']()
-            pre_target = cond['target']
+            nonlocal pre_target, task, task_index, chain
+            cond = task[cond_index]
+
+            # execute target
+            if cond['target'] == 'pass':
+                target = lambda *arg: None
+            else:
+                target = cond['target']
+            target()
+            pre_target = target
+
+            # load next task
             # case or break_case
             if cond['type'] == 'case':
-                exec_cond(index+1)
+                exec_cond(cond_index+1)
                 return
             if cond['type'] == 'default' or cond['type'] == 'break_case':
-                task = cond['next']
+                # independent task
+                if isinstance(cond['next'], list):
+                    task = cond['next']
+                    return
+                # task in chain
+                # absolut task index
+                if isinstance(cond['next'], int):
+                    task_index = cond['next']
+                elif isinstance(cond['next'], str):
+                    if cond['next'] == 'next':
+                        task_index += 1
+                    elif cond['next'] == 'self':
+                        pass  # index not changed
+                    else:
+                        raise ValueError(
+                            'value must be \'self\' or \'next\'')
+                # change chain (or relevent task index TODO)
+                elif isinstance(cond['next'], tuple):
+                    # chain changement
+                    if isinstance(cond['next'][0], list):
+                        chain = cond['next'][0]
+                        task_index = cond['next'][1]
+                task = chain[task_index]
                 return
             raise ValueError(
                 'value must be \'case\', \'break_case\' or \'default\'')
 
         stop_logcat_event = threading.Event()
         start_logcat_thread()
-        task = entrance
+
+        # passed a chain in
+        if isinstance(task, tuple):
+            chain = task[0]
+            task_index = task[1]
+            task = chain[task_index]
+        else:
+            chain = list()
+            task_index = int()
+
         pre_target = lambda *arg: None
         while True:
-            # read log
+            # no log needed
             if task[0]['type'] == 'default':
                 exec_cond(0)
                 continue
+            # read log
             try:
+                task = chain[task_index]
                 log = self.logcat_queue.get(
                     block=True, timeout=block_timeout)
             except queue.Empty:
                 pre_target()
             else:
                 # match conditions
-                for (index, condition) in enumerate(task):
-                    if (condition['type'] == 'default' or
-                            condition['match'].match(log)):
-                        exec_cond(index)
+                for (cond_index, cond) in enumerate(task):
+                    if (cond['type'] == 'default' or
+                            re.match(cond['match'], log)):
+                        exec_cond(cond_index)
                         break
         # stop logcat thread
         stop_logcat_event.set()

@@ -195,82 +195,78 @@ def tap_battle_btn(gfcontrol: GFControl):
     """
     gfcontrol.tap(260, 230)
 
+
 # 拆解任务
-
-
-def task_deassembly(gfcontrol: GFControl):
+def task_deassembly(gfcontrol: GFControl, next_task):
     '''
     return task deassembly
     '''
-    task = GFControl.generate_task_chain(
+    task = [
+        # 点击拆解tab
         [
-            # 点击拆解tab
-            [
-                {
-                    'type': 'break_case',
-                    'match': r'预加载结束',
-                    'target': partial(tap_deassembly_tab, gfcontrol),
-                    'next': 'next'
-                }
-            ],
-            # 点击选择人形
-            [
-                {
-                    'type': 'default',
-                    'target': partial(tap_choose_doll_tab, gfcontrol),
-                    'next': 'next'
-                }
-            ],
-            # 点击智能选择
-            [
-                {
-                    'type': 'case',
-                    'target': 'pass',
-                    'match': r'.*实例化数目0'
-                },
-                {
-                    'type': 'break_case',
-                    'match': r'加载Resource预制物',
-                    'target': partial(tap_smart_choose_doll_btn, gfcontrol),
-                    'next': 'next'
-                }
-            ],
-            # 点击确定
-            [
-                {
-                    'type': 'break_case',
-                    'match': r'.*实例化数目0销毁数目0',
-                    'target': partial(tap_smart_choose_doll_btn, gfcontrol),
-                    'next': 'next'
-                }
-            ],
-            # 点击拆解
-            [
-                {
-                    'type': 'default',
-                    'target': partial(tap_deassemble_btn, gfcontrol),
-                    'next': 'next'
-                }
-            ],
-            # 拆解结束，打开快捷菜单
-            [
-                {
-                    'type': 'break_case',
-                    'match': r'.*retireGun',
-                    'target': partial(tap_shortcut_menu, gfcontrol),
-                    'next': 'next'
-                }
-            ],
-            # 菜单弹出，点击战斗
-            [
-                {
-                    'type': 'break_case',
-                    'match': r'.*RefreshRewardMail',
-                    'target': partial(tap_battle_btn, gfcontrol),
-                    'next': 'self'
-                }
-            ]
+            {
+                'type': 'break_case',
+                'match': r'预加载结束',
+                'target': partial(tap_deassembly_tab, gfcontrol),
+                'next': 'next'
+            }
+        ],
+        # 点击选择人形
+        [
+            {
+                'type': 'default',
+                'target': partial(tap_choose_doll_tab, gfcontrol),
+                'next': 'next'
+            }
+        ],
+        # 点击智能选择
+        [
+            {
+                'type': 'case',
+                'target': 'pass',
+                'match': r'.*实例化数目0'
+            },
+            {
+                'type': 'break_case',
+                'match': r'加载Resource预制物',
+                'target': partial(tap_smart_choose_doll_btn, gfcontrol),
+                'next': 'next'
+            }
+        ],
+        # 点击确定
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*实例化数目0销毁数目0',
+                'target': partial(tap_smart_choose_doll_btn, gfcontrol),
+                'next': 'next'
+            }
+        ],
+        # 点击拆解
+        [
+            {
+                'type': 'default',
+                'target': partial(tap_deassemble_btn, gfcontrol),
+                'next': 'next'
+            }
+        ],
+        # 拆解结束，打开快捷菜单
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*retireGun',
+                'target': partial(tap_shortcut_menu, gfcontrol),
+                'next': 'next'
+            }
+        ],
+        # 菜单弹出，点击战斗
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*RefreshRewardMail',
+                'target': partial(tap_battle_btn, gfcontrol),
+                'next': next_task
+            }
         ]
-    )
-
+    ]
     return task
