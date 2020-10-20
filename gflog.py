@@ -27,7 +27,7 @@ pre_line = logcat_proc.stdout.readline()
 while True:
     current_line = logcat_proc.stdout.readline()
     # check if needed
-    if b'DebugLogHandler' in current_line:
+    if pre_line and b'DebugLogHandler' in current_line:
         current_log = pre_line.rstrip().decode('utf-8')
         # put log in queue
         print(current_log)

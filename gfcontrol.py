@@ -165,11 +165,10 @@ class GFControl(AndroidControl):
                                                stdin=subprocess.PIPE)
                 # read log
                 pre_line = logcat_proc.stdout.readline()
-                required = b'DebugLogHandler'
                 while not stop_logcat_event.is_set():
                     current_line = logcat_proc.stdout.readline()
                     # check if needed
-                    if required in current_line:
+                    if pre_line and b'DebugLogHandler' in current_line:
                         current_log = pre_line.rstrip().decode('utf-8')
                         # put log in queue
                         self.logcat_queue.put(current_log)
@@ -189,7 +188,7 @@ class GFControl(AndroidControl):
             '''
             match log with a condition and do target
             '''
-            nonlocal pre_target, task, task_index, chain
+            nonlocal chain, task_index, task, log, re_result, pre_target
             cond = task[cond_index]
 
             # execute target
@@ -197,7 +196,7 @@ class GFControl(AndroidControl):
                 target = lambda *arg: None
             else:
                 target = cond['target']
-            target()
+            target((chain, task_index, task, log, re_result, pre_target))
             pre_target = target
 
             # load next task
@@ -205,38 +204,53 @@ class GFControl(AndroidControl):
             if cond['type'] == 'case':
                 exec_cond(cond_index+1)
                 return
-            if cond['type'] == 'default' or cond['type'] == 'break_case':
+            elif cond['type'] == 'default' or cond['type'] == 'break_case':
                 # independent task
                 if isinstance(cond['next'], list):
                     task = cond['next']
                     return
                 # task in chain
-                # absolut task index
+                # int: absolut task index
                 if isinstance(cond['next'], int):
                     task_index = cond['next']
+                # str: next pre or self
                 elif isinstance(cond['next'], str):
                     if cond['next'] == 'next':
                         task_index += 1
+                    elif cond['next'] == 'pre':
+                        task_index -= 1
                     elif cond['next'] == 'self':
                         pass  # index not changed
                     else:
                         raise ValueError(
-                            'value must be \'self\' or \'next\'')
-                # change chain (or relevent task index TODO)
+                            'value must be \'next\', \'pre\' or \'self\'')
+                # change chain or relevent task index
                 elif isinstance(cond['next'], tuple):
                     # chain changement
                     if isinstance(cond['next'][0], list):
                         chain = cond['next'][0]
                         task_index = cond['next'][1]
+                    # relevent task index
+                    elif isinstance(cond['next'][0], str):
+                        if cond['next'] == 'next':
+                            task_index += cond['next'][1]
+                        elif cond['next'] == 'pre':
+                            task_index -= cond['next'][1]
+                        else:
+                            raise ValueError(
+                                'value must be \'next\', \'pre\' or \'self\'')
+                    else:
+                        raise TypeError('type must be list or str')
                 task = chain[task_index]
                 return
             raise ValueError(
                 'value must be \'case\', \'break_case\' or \'default\'')
 
+        # start logcat thread
         stop_logcat_event = threading.Event()
         start_logcat_thread()
 
-        # passed a chain in
+        # init chain, task
         if isinstance(task, tuple):
             chain = task[0]
             task_index = task[1]
@@ -245,26 +259,37 @@ class GFControl(AndroidControl):
             chain = list()
             task_index = int()
 
+        # start task
         pre_target = lambda *arg: None
         while True:
-            # no log needed
-            if task[0]['type'] == 'default':
-                exec_cond(0)
-                continue
-            # read log
-            try:
-                task = chain[task_index]
-                log = self.logcat_queue.get(
-                    block=True, timeout=block_timeout)
-            except queue.Empty:
-                pre_target()
-            else:
-                # match conditions
-                for (cond_index, cond) in enumerate(task):
-                    if (cond['type'] == 'default' or
-                            re.match(cond['match'], log)):
-                        exec_cond(cond_index)
+            log = ''
+            # match each condition
+            for (cond_index, cond) in enumerate(task):
+                # default
+                if cond['type'] == 'default':
+                    exec_cond(cond_index)
+                    break
+                # case or break case
+                # extern match
+                if (callable(cond['match'])
+                        and cond['match']((chain, task_index, cond_index, log))):
+                    exec_cond(cond_index)
+                    break
+                # match log
+                if isinstance(cond['match'], str):
+                    try:
+                        if not log:
+                            log = self.logcat_queue.get(
+                                block=True, timeout=block_timeout)
+                    except queue.Empty:
+                        pre_target()
                         break
+                    else:
+                        re_result = re.match(cond['match'], log)
+                        if re_result:
+                            exec_cond(cond_index)
+                            break
+
         # stop logcat thread
         stop_logcat_event.set()
         return
