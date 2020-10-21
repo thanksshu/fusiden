@@ -3,10 +3,22 @@ log gf
 '''
 import subprocess
 import shlex
+import atexit
 from gfcontrol import GFControl
 
 GFControl.adbpath = "/home/thanksshu/Android/sdk/platform-tools/adb"
 gf = GFControl(device_id="39V4C19114019806")
+
+
+def kill_subproc(subproc):
+    """
+    terminate a subproc
+    """
+    while subproc.poll() is None:
+        subproc.kill()
+        subproc.wait()
+    return
+
 
 # get time and pid
 now = gf.get_time()
@@ -22,6 +34,7 @@ logcat_proc = subprocess.Popen(shlex.split(cmd),
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE,
                                stdin=subprocess.PIPE)
+atexit.register(kill_subproc, logcat_proc)
 # read log
 pre_line = logcat_proc.stdout.readline()
 while True:
@@ -32,5 +45,5 @@ while True:
         # put log in queue
         print(current_log)
     pre_line = current_line
-    # terminate subproc
-logcat_proc.terminate()
+# terminate subproc
+logcat_proc.kill()

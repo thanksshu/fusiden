@@ -13,7 +13,7 @@ gf = GFControl(device_id='39V4C19114019806')
 
 
 @action.log_func
-def init_map():
+def init_map(*, arg=None):
     """
     令地图满足固定座标
     """
@@ -23,7 +23,7 @@ def init_map():
 
 
 @action.log_func
-def tap_1():
+def tap_1(*, arg=None):
     """
     点击第一关
     """
@@ -32,7 +32,7 @@ def tap_1():
 
 
 @action.log_func
-def tap_hq():
+def tap_hq(*, arg=None):
     """
     点击HQ
     """
@@ -40,7 +40,7 @@ def tap_hq():
 
 
 @action.log_func
-def tap_wp_1():
+def tap_wp_1(*, arg=None):
     """
     路径点1
     """
@@ -48,7 +48,7 @@ def tap_wp_1():
 
 
 @action.log_func
-def tap_wp_2():
+def tap_wp_2(*, arg=None):
     """
     路径点2
     """
@@ -56,7 +56,7 @@ def tap_wp_2():
 
 
 @action.log_func
-def tap_airport():
+def tap_airport(*, arg=None):
     """
     点击机场
     """
@@ -138,7 +138,7 @@ task_deassembly.extend(
             {
                 'type': 'break_case',
                 'match': r'.*TeamSelectionCharacterLabel',
-                'target': partial(action.tap_left_first, gf),
+                'target': partial(action.tap_left, gf, 0),
                 'next': (task_gykc_1, 0)
             }
         ]
@@ -147,6 +147,7 @@ task_deassembly.extend(
 
 task_gykc_1.extend(
     [
+        # 选择作战
         [
             {
                 'type': 'break_case',
@@ -180,7 +181,7 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
+        # 强化或初始化地图
         [
             # 人形已满，去强化
             {
@@ -222,7 +223,6 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
         # 点击确认部署
         [
             {
@@ -232,7 +232,6 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
         # 噪音
         [
             {
@@ -241,7 +240,6 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
         # 选择机场
         [
             {
@@ -251,7 +249,6 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
         # 点击确认部署
         [
             {
@@ -261,7 +258,6 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
         # 开始作战
         [
             {
@@ -296,7 +292,6 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
         # 噪音
         [
             {
@@ -305,7 +300,6 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
         # 点击指挥部
         [
             {
@@ -315,7 +309,6 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
         # 点击路径点1
         [
             {
@@ -325,7 +318,6 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
         # 点击路径点2
         [
             {
@@ -335,7 +327,6 @@ task_gykc_1.extend(
                 'next': 'next'
             }
         ],
-
         # 执行计划
         [
             {
