@@ -2,31 +2,33 @@
 0-2 自动拖尸 维修 拆低星人形
 '''
 import argparse
+import json
 import os
 from functools import partial
 from random import SystemRandom
 
+import fusiden
 import action
-from gfcontrol import GFControl
-
 
 parser = argparse.ArgumentParser(description='auto run 0-2')
 parser.add_argument('hitman', type=str, help='hitman in the team now')
 parser.add_argument('-e', type=int, default=3, nargs='?',
                     help='entrance number for the chain')
-parser.add_argument('-f', type=bool, default=False, nargs='?',
+parser.add_argument('-f', action='store_true', default=False,
                     help='directly fix m16')
 args = parser.parse_args()
-print(args)
 
 random = SystemRandom()
-GFControl.adbpath = '/home/thanksshu/Android/sdk/platform-tools/adb'
-gf = GFControl(device_id='39V4C19114019806')
+fusiden.GFControl.adbpath = '/home/thanksshu/Android/sdk/platform-tools/adb'
+gf = fusiden.GFControl(device_id='39V4C19114019806')
 
+with open('target.json') as fp:
+    targets = json.load(fp)
 
 # targets
 
-@action.log_func
+
+@fusiden.utils.log_func
 def init_map(*, arg=None):
     """
     令地图满足固定座标
@@ -45,7 +47,7 @@ def init_map(*, arg=None):
              duration=1200, radius=0, delta=50)  # 令地图满足固定座标
 
 
-@action.log_func
+@fusiden.utils.log_func
 def tap_airport(*, arg=None):
     """
     点击机场
@@ -53,7 +55,7 @@ def tap_airport(*, arg=None):
     gf.tap(510, 490)
 
 
-@action.log_func
+@fusiden.utils.log_func
 def tap_hq(*, arg=None):
     """
     点击指挥部
@@ -61,7 +63,7 @@ def tap_hq(*, arg=None):
     gf.tap(772, 492)
 
 
-@action.log_func
+@fusiden.utils.log_func
 def tap_waypoint(*, arg=None):
     """
     点击左上路径点
@@ -69,7 +71,7 @@ def tap_waypoint(*, arg=None):
     gf.tap(691, 138, radius=3)
 
 
-@action.log_func
+@fusiden.utils.log_func
 def tap_ehq(*, arg=None):
     """
     点击敌指挥部
@@ -81,9 +83,9 @@ def generate_output():
     """
     生成 output 函数
     """
-    count = 1
+    count = 0
 
-    @action.log_func
+    @fusiden.utils.log_func
     def _o(*, arg=None):
         """
         输出
@@ -101,7 +103,7 @@ def generate_repair_m16(direct_fix=False):
     """
     repair_flag = direct_fix
 
-    @action.log_func
+    @fusiden.utils.log_func
     def _set_repair_flag(value, *, arg=None):
         """
         改变 repair flag
@@ -109,17 +111,17 @@ def generate_repair_m16(direct_fix=False):
         nonlocal repair_flag
         repair_flag = value
 
-    @action.log_func
+    @fusiden.utils.log_func
     def _check_m16(*, arg=None):
         """
         检测M16性命状态
         """
         nonlocal repair_flag
-        chain = arg[0]
-        task_index = arg[1]
-        cond_index = arg[2]
+        chain = arg['chain']
+        task_index = arg['task_index']
+        cond_index = arg['condition_index']
         if repair_flag is False:
-            chain[task_index][cond_index]['next'] = ('next', 4)
+            chain[task_index][cond_index]['next'] = ['relev', 4]
         else:
             chain[task_index][cond_index]['next'] = 'next'
     return _set_repair_flag, _check_m16
@@ -131,7 +133,7 @@ def generate_change_hitman(hitman):
     """
     hitman = hitman if hitman else hitman
 
-    @action.log_func
+    @fusiden.utils.log_func
     def _change_hitman(*, arg=None):
         """
         更换打手
@@ -139,11 +141,11 @@ def generate_change_hitman(hitman):
         nonlocal hitman
         if hitman == 'g11':
             # gf.tap_in(850, 120, 990, 480)
-            action.tap_doll_in_warehouse(gf, 0, 4)
+            action.tap_doll_in_warehouse(gf, 0, 5)
             hitman = 'an94'
         else:
             # gf.tap_in(494, 120, 646, 480)
-            action.tap_doll_in_warehouse(gf, 0, 2)
+            action.tap_doll_in_warehouse(gf, 0, 3)
             hitman = 'g11'
     return _change_hitman
 
@@ -153,9 +155,10 @@ set_repair_flag, check_m16 = generate_repair_m16(args.f)
 change_hitman = generate_change_hitman(args.hitman)
 
 # tasks
-task_0_2 = list()
-task_deassembly = action.generate_task_deassembly(gf, (task_0_2, 1))
-task_0_2.extend(
+chain_0_2 = list()
+chain_deassembly = action.generate_chain_deassembly(
+    gf, [chain_0_2, 1])
+chain_0_2.extend(
     [
         # 清屏，计数
         [
@@ -184,7 +187,6 @@ task_0_2.extend(
                 'type': 'case',
                 'match': r'.*Decode',
                 'target': 'pass',
-                'next': ('next', 2)
             },
             {
                 'type': 'break_case',
@@ -198,7 +200,7 @@ task_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*Function：Mission/combinationInfo',
-                'target': partial(action.tap_normal_battle, gf),
+                'target': partial(gf.tap_in, *targets['combat.setting.normal.tpi']),
                 'next': 'next'
             }
         ],
@@ -208,9 +210,8 @@ task_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*RevertcanvasMissionInfo',
-                'target': partial(
-                        action.tap_go_for_enhance, gf),
-                'next': (task_deassembly, 0)
+                'target': partial(gf.tap_in, *targets['combat.setting.enhance.tpi']),
+                'next': [chain_deassembly, 0]
             },
             # 初始化地图
             {
@@ -267,7 +268,7 @@ task_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*MessageboxNormalFixConfirmBox',
-                'target': partial(action.tap_onepress_confirm, gf),
+                'target': partial(gf.tap_in, *targets['repair.onepress.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -284,7 +285,7 @@ task_0_2.extend(
         [
             {
                 'type': 'default',
-                'target': partial(action.tap_formation, gf),
+                'target': partial(gf.tap_in, *targets['battle.team.formation.tpi']),
                 'next': 'next'
             }
         ],
@@ -311,7 +312,7 @@ task_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*RequestChangeTeam success',
-                'target': partial(action.tap_goback, gf),
+                'target': partial(gf.tap, *targets['global.back.tp']),
                 'next': 'next'
             }
         ],
@@ -337,7 +338,7 @@ task_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*MessageboxDeploymentTeamInfo',
-                'target': partial(action.tap_confirm, gf),
+                'target': partial(gf.tap_in, *targets['battle.team.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -363,7 +364,7 @@ task_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*MessageboxDeploymentTeamInfo',
-                'target': partial(action.tap_confirm, gf),
+                'target': partial(gf.tap_in, *targets['battle.team.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -372,7 +373,7 @@ task_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'刷新UI0',
-                'target': partial(action.tap_start, gf),
+                'target': partial(gf.tap_in, *targets['battle.start.tpi']),
                 'next': 'next'
             }
         ],
@@ -483,7 +484,7 @@ task_0_2.extend(
         ],
         # 回合结束，等待
         [
-            # 防计划中断
+            # 防计划中断,防弹药口粮不足
             {
                 'type': 'break_case',
                 'match': r'.*变更计划模式状态pause',
@@ -571,5 +572,22 @@ task_0_2.extend(
         ],
     ]
 )
+chain_entrance = [
+    [
+        {
+            'type': 'default',
+            'target': output,
+            'next': 'next'
+        }
+    ],
+    [
+        {
+            'type': 'default',
+            'target': partial(action.tap_right, gf, 1),
+            'next': [chain_0_2, 3]
+        }
 
-gf.run_task((task_0_2, args.e))
+    ]
+]
+
+gf.run_task([chain_entrance, 0])

@@ -1,0 +1,124 @@
+{
+    "battle.somewhere.tpi": [
+        700,
+        130,
+        1400,
+        700
+    ],
+    "combat.mission.right_second.tpi": [
+        590,
+        370,
+        1300,
+        460
+    ],
+    "combat.middle_up.sw": [
+        360,
+        160,
+        360,
+        650
+    ],
+    "combat.setting.normal.tpi": [
+        1100,
+        570,
+        1200,
+        630
+    ],
+    "combat.setting.enhance.tpi": [
+        830,
+        470,
+        1000,
+        520
+    ],
+    "battle.team.confirm.tpi": [
+        1200,
+        610,
+        1350,
+        660
+    ],
+    "battle.team.formation.tpi": [
+        280,
+        610,
+        440,
+        640
+    ],
+    "battle.plan_mode.tpi": [
+        50,
+        570,
+        150,
+        610
+    ],
+    "battle.start.tpi": [
+        1380,
+        610,
+        1480,
+        700
+    ],
+    "battle.popup.cancel.tpi": [
+        560,
+        470,
+        710,
+        520
+    ],
+    "global.back.tp": [
+        212,
+        52
+    ],
+    "factory.deassembly.tpi": [
+        130,
+        380,
+        290,
+        450
+    ],
+    "factory.deassembly.doll.tpi": [
+        370,
+        170,
+        520,
+        260
+    ],
+    "warehouse.confirm.tpi": [
+        1210,
+        590,
+        1370,
+        700
+    ],
+    "factory.deassembly.deassembly.tpi": [
+        1170,
+        570,
+        1330,
+        630
+    ],
+    "global.shortcut.tpi": [
+        300,
+        20,
+        360,
+        80
+    ],
+    "shortcut.combat.tp": [
+        260,
+        240
+    ],
+    "shortcut.home.tpi": [
+        200,
+        110,
+        500,
+        170
+    ],
+    "home.repair.tpi": [
+        370,
+        560,
+        470,
+        570
+    ],
+    "repair.onepress.tpi": [
+        1170,
+        650,
+        1400,
+        700
+    ],
+    "repair.onepress.confirm.tpi": [
+        1000,
+        520,
+        1160,
+        570
+    ]
+}

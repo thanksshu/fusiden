@@ -5,20 +5,14 @@ import time
 from functools import partial
 from random import SystemRandom
 
-from gfcontrol import GFControl
+from fusiden import GFControl
+from fusiden.utils import log_func
+
 
 random = SystemRandom()
 
 
 # 其他操作
-def log_func(func):
-    """
-    log 装饰器
-    """
-    def wrapper(*args, **kwargs):
-        print(func.__name__)
-        return func(*args, **kwargs)
-    return wrapper
 
 
 def sleep(sec, ratio=0.2, *, arg=None):
@@ -201,8 +195,8 @@ def tap_doll_in_team(gfcontrol, number, *, arg=None):
     """
     编队选择人形
     """
-    x_left = 270 + number * 183
-    x_right = 435 + number * 183
+    x_left = 300 + number * 183
+    x_right = 390 + number * 183
     gfcontrol.tap_in(x_left, 170, x_right, 490)
 
 
@@ -212,10 +206,10 @@ def tap_doll_in_warehouse(gfcontrol, line, row, *, arg=None):
     """
     仓库选择人形
     """
-    x_left = 144 + row * 174
-    x_right = 296 + row * 174
-    y_top = 116 + line * 301
-    y_bott = 393 + line * 301
+    x_left = 180 + row * 174
+    x_right = 260 + row * 174
+    y_top = 170 + line * 301
+    y_bott = 330 + line * 301
     gfcontrol.tap_in(x_left, y_top, x_right, y_bott)
 
 
@@ -281,7 +275,7 @@ def tap_battle_btn(gfcontrol: GFControl, *, arg=None):
     """
     点击战斗圆钮
     """
-    gfcontrol.tap(260, 230)
+    gfcontrol.tap(260, 240)
 
 
 # 快捷导航/返回基地
@@ -322,7 +316,7 @@ def tap_onepress_confirm(gfcontrol, *, arg=None):
 
 
 # 生成拆解任务
-def generate_task_deassembly(gfcontrol: GFControl, next_task):
+def generate_chain_deassembly(gfcontrol: GFControl, next_task):
     '''
     return task deassembly
     '''
@@ -347,13 +341,8 @@ def generate_task_deassembly(gfcontrol: GFControl, next_task):
         # 点击智能选择
         [
             {
-                'type': 'case',
-                'target': 'pass',
-                'match': r'.*实例化数目0'
-            },
-            {
                 'type': 'break_case',
-                'match': r'加载Resource预制物',
+                'match': r'.*CharacterListLabel',
                 'target': partial(tap_smart_choose_doll_btn, gfcontrol),
                 'next': 'next'
             }
@@ -362,7 +351,7 @@ def generate_task_deassembly(gfcontrol: GFControl, next_task):
         [
             {
                 'type': 'break_case',
-                'match': r'.*实例化数目0销毁数目0',
+                'match': r'实例化数目0销毁数目0',
                 'target': partial(tap_smart_choose_doll_btn, gfcontrol),
                 'next': 'next'
             }
@@ -370,10 +359,17 @@ def generate_task_deassembly(gfcontrol: GFControl, next_task):
         # 点击拆解
         [
             {
-                'type': 'default',
+                'type': 'break_case',
+                'match': r'.*SmallGunItem',
                 'target': partial(tap_deassemble_btn, gfcontrol),
                 'next': 'next'
-            }
+            },
+            {
+                'type': 'break_case',
+                'match': r'.*实例化数目0销毁数目0',
+                'target': 'pass',
+                'next': None
+            },
         ],
         # 拆解结束，打开快捷菜单
         [

@@ -1,13 +1,14 @@
 '''
 log gf
 '''
-import subprocess
-import shlex
 import atexit
-from gfcontrol import GFControl
+import shlex
+import subprocess
 
-GFControl.adbpath = "/home/thanksshu/Android/sdk/platform-tools/adb"
-gf = GFControl(device_id="39V4C19114019806")
+import fusiden
+
+fusiden.GFControl.adbpath = "/home/thanksshu/Android/sdk/platform-tools/adb"
+gf = fusiden.GFControl(device_id="39V4C19114019806")
 
 
 def kill_subproc(subproc):

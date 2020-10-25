@@ -4,8 +4,8 @@
 from functools import partial
 from random import SystemRandom
 
+from fusiden import GFControl
 import action
-from gfcontrol import GFControl
 
 random = SystemRandom()
 GFControl.adbpath = '/home/thanksshu/Android/sdk/platform-tools/adb'
@@ -189,7 +189,7 @@ task_gykc_1.extend(
                 'match': r'.*RevertcanvasMissionInfo',
                 'target': partial(
                     action.tap_go_for_enhance, gf),
-                'next': (task_deassembly, 0)
+                'next': [task_deassembly, 0]
             },
             # 初始化地图
             {
