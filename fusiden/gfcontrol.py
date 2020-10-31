@@ -9,7 +9,7 @@ import subprocess
 import threading
 from random import SystemRandom
 
-from .utils import kill_subproc
+from . import utils
 
 random = SystemRandom()
 
@@ -67,7 +67,7 @@ class AndroidControl():
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE, **kwarg)
         # make sure logcat is killed
-        atexit.register(kill_subproc, popen)
+        atexit.register(utils.kill_subproc, popen)
         return popen
 
     def get_time(self):
@@ -76,8 +76,8 @@ class AndroidControl():
         '''
         sub_cmd = shlex.quote('$(date +\'%Y-%m-%d %H:%M:%S.000\')')
         cmd = f'{self.adbpath} -s {self.device_id} shell echo {sub_cmd}'
-        result = subprocess.run(shlex.split(
-            cmd), capture_output=True, check=True)
+        result = subprocess.run(shlex.split(cmd),
+                                capture_output=True, check=True)
         return result.stdout.rstrip().decode('utf-8')
 
     def get_pid(self, package_name):
@@ -85,22 +85,21 @@ class AndroidControl():
         return pid of a application
         '''
         cmd = f'{self.adbpath} -s {self.device_id} shell pidof -s {package_name}'
-        result = subprocess.run(shlex.split(
-            cmd), capture_output=True, check=True)
+        result = subprocess.run(shlex.split(cmd),
+                                capture_output=True, check=True)
         return result.stdout.rstrip().decode('utf-8')
 
-    def tap(self, pos_x, pos_y, *args, radius=5, duration=50, delta=20, **kwargs):
+    def tap(self, pos_x, pos_y, radius=5, duration=50, delta=20, *, arg=None):
         '''
         tap somewhere
         '''
         pos_x = pos_x + random.randint(-radius, radius)
         pos_y = pos_y + random.randint(-radius, radius)
-        proc = self.swipe(pos_x, pos_y, pos_x, pos_y, radius=0,
-                          duration=duration, delta=delta)
-        return proc
+        self.swipe(pos_x, pos_y, pos_x, pos_y, radius=0,
+                   duration=duration, delta=delta)
 
-    def swipe(self, pos_x_start, pos_y_start,  pos_x_end, pos_y_end, *args,
-              radius=5, duration=200, delta=100, **kwargs):
+    def swipe(self, pos_x_start, pos_y_start,  pos_x_end, pos_y_end,
+              radius=5, duration=200, delta=100, *, arg=None):
         '''
         swipe
         '''
@@ -112,21 +111,19 @@ class AndroidControl():
 
         cmd = (f'{self.adbpath} -s {self.device_id} shell input swipe '
                f'{pos_x_start} {pos_y_start} {pos_x_end} {pos_y_end} {duration}')
-        proc = subprocess.run(shlex.split(
-            cmd), capture_output=True, check=True)
-        return proc
+        subprocess.run(shlex.split(cmd),
+                       capture_output=True, check=True)
 
-    def tap_in(self, left_up_x, left_up_y, right_bottom_x, right_bottom_y, *args,
-               duration=80, delta=15, **kwargs):
+    def tap_in(self, left_up_x, left_up_y, right_bottom_x, right_bottom_y,
+               duration=80, delta=15, *, arg=None):
         '''
         tap somewhere in a square
         '''
         pos_x = random.randint(left_up_x, right_bottom_x)
         pos_y = random.randint(left_up_y, right_bottom_y)
 
-        proc = self.tap(pos_x, pos_y, radius=0,
-                        duration=duration, delta=delta)
-        return proc
+        self.tap(pos_x, pos_y, radius=0,
+                 duration=duration, delta=delta)
 
 
 class GFControl(AndroidControl):
@@ -137,11 +134,14 @@ class GFControl(AndroidControl):
     def __init__(self, device_index=0, device_id=None):
         super().__init__(device_index=device_index, device_id=device_id)
         self.logcat_queue = queue.Queue()
+        self.logcat_proc = None
 
-    def start_logcat(self, stop_event=threading.Event()):
+    def start_logcat(self, *, arg=None):
         '''
         start logcat then put needed logcat in queue
         '''
+        # stop current running subproc
+        self.stop_logcat()
         # get time and pid
         now = self.get_time()
         pid = self.get_pid('com.sunborn.girlsfrontline.cn')
@@ -152,30 +152,41 @@ class GFControl(AndroidControl):
         cmd = f'{self.adbpath} -s {self.device_id} logcat -G 16m'
         subprocess.run(shlex.split(cmd),
                        capture_output=True, check=True)
-        # start log subproc
+        # start logcat subproc
         cmd = (f'{self.adbpath} -s {self.device_id}'
                f' logcat -v raw -s Unity -T {shlex.quote(now)} --pid={pid}')
-        logcat_proc = subprocess.Popen(shlex.split(cmd),
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE,
-                                       stdin=subprocess.PIPE)
+        self.logcat_proc = subprocess.Popen(shlex.split(cmd),
+                                            stdout=subprocess.PIPE,
+                                            stderr=subprocess.PIPE,
+                                            stdin=subprocess.PIPE)
         # make sure logcat will be killed
-        atexit.register(kill_subproc, logcat_proc)
+        atexit.register(self.stop_logcat)
+
+    def stop_logcat(self, *, arg=None):
+        '''
+        start logcat then put needed logcat in queue
+        '''
+        if self.logcat_proc is not None:
+            utils.kill_subproc(self.logcat_proc)
+            self.logcat_proc = None
+
+    def _store_log(self, stop_event=threading.Event(), *, arg=None):
+        """
+        store log in queue
+        """
         # read log
-        pre_line = logcat_proc.stdout.readline()
+        pre_line = self.logcat_proc.stdout.readline()
         while not stop_event.is_set():
-            current_line = logcat_proc.stdout.readline()
+            # TODO: readline block
+            current_line = self.logcat_proc.stdout.readline()
             # check if needed
             if pre_line and b'DebugLogHandler' in current_line:
                 current_log = pre_line.rstrip().decode('utf-8')
                 # put log in queue
                 self.logcat_queue.put(current_log)
             pre_line = current_line
-        # kill subproc
-        kill_subproc(logcat_proc)
 
-    def run_task(self, task,
-                 block_timeout=15, stop_event=threading.Event(),
+    def run_task(self, task, block_timeout=15, stop_event=threading.Event(),
                  *, arg=None):
         '''
         run a serials of task
@@ -258,18 +269,21 @@ class GFControl(AndroidControl):
                         # set current task
                         task = chain[task_index]
                     return
-                raise TypeError('type of\'next\' must be str, int or list')
+                raise TypeError('type of \'next\' must be str, int or list')
             # throw value error
             raise ValueError(
                 '\'type\'value must be \'case\', \'break_case\' or \'default\'')
 
+        self.start_logcat()
         # declare event to stop logcat
-        logcat_stop_event = threading.Event()
+        store_thread_stop_event = threading.Event()
         # launch the thread
-        store_log_thread = threading.Thread(
-            target=self.start_logcat, args=(logcat_stop_event,),
-            name='logcat', daemon=True)
-        store_log_thread.start()
+        store_thread = threading.Thread(
+            target=self._store_log,
+            args=(store_thread_stop_event,),
+            name='_store_log',
+            daemon=True)
+        store_thread.start()
 
         # init chain, task
         if isinstance(task[0], list):
@@ -282,9 +296,10 @@ class GFControl(AndroidControl):
             chain = list()
             task_index = int()
 
-        # start task
+        # run task
         timeout_target = lambda *args, **kwargs: None
         re_result = None
+        timer = utils.Timer()
         while not stop_event.is_set():
             # reset log
             log = ''
@@ -292,23 +307,34 @@ class GFControl(AndroidControl):
             for (cond_index, cond) in enumerate(task):
                 # default
                 if cond['type'] == 'default':
+                    timer.reset()
                     exec_cond(cond_index)
                     break
                 # case or break case
                 try:
+                    # pick a log for this task
                     if not log:
                         log = self.logcat_queue.get(
-                            block=True, timeout=block_timeout)
+                            block=True, timeout=0.2)
+                        timer.reset()
+                        self.logcat_queue.task_done()
                 except queue.Empty:
-                    timeout_target()
+                    # get failed, do something after timeout
+                    timer.start()
+                    if timer.check() >= block_timeout:
+                        timer.reset()
+                        timeout_target()
                     break
                 else:
                     # match log
                     re_result = re.match(cond['match'], log)
                     if re_result:
+                        timer.reset()
                         exec_cond(cond_index)
                         break
 
-        # stop logcat thread
-        logcat_stop_event.set()
-        return chain, task_index, task
+        # kill logcat subproc
+        self.stop_logcat()
+        # stop store log thread
+        store_thread_stop_event.set()
+        store_thread.join()
