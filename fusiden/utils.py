@@ -10,7 +10,7 @@ def pack(func, *args, **kwargs):
     pack up function with argument
     """
     def wrapper(*, arg=None):
-        print(func.__name__, *args, **kwargs)
+        print(f'{func.__name__} {args} {kwargs}')
         return func(arg=arg, *args, **kwargs)
     return wrapper
 

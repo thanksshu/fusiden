@@ -50,7 +50,7 @@ def tap_hq(*, arg=None):
     """
     点击指挥部
     """
-    gf.tap(750, 400)
+    gf.tap(752, 395)
 
 
 @fusiden.utils.log_func
@@ -58,7 +58,7 @@ def tap_waypoint(*, arg=None):
     """
     点击路径点
     """
-    gf.tap(610, 536)
+    gf.tap(610, 538)
 
 
 @fusiden.utils.log_func
@@ -66,7 +66,7 @@ def tap_ehq(*, arg=None):
     """
     点击目标
     """
-    gf.tap(584, 490)
+    gf.tap(584, 492)
 
 
 chain_main = list()
@@ -77,40 +77,20 @@ task_entrance = [
         'next': [chain_main, 0]
     }
 ]
-chain_end_deass = [
-    # 等一下
+chain_end_factory = [
+    # 打开快捷菜单
     [
         {
-            'type': 'case',
-            'match': r'.*TeamSelectionCharacterLabel',
-            'target': 'pass',
-        },
-        {
-            'type': 'break_case',
-            'match': r'.*Mission/drawEvent',
-            'target': 'pass',
+            'type': 'default',
+            'target': fusiden.utils.pack(gf.tap_in, *target['global.shortcut.tpi']),
             'next': 'next'
-        },
-    ],
-    # 等一下
-    [
-        {
-            'type': 'case',
-            'match': r'.*Decode',
-            'target': 'pass',
-        },
-        {
-            'type': 'break_case',
-            'match': r'.*TeamSelectionCharacterLabel',
-            'target': fusiden.utils.pack(fusiden.utils.rsleep, 2),
-            'next': 'next'
-        },
+        }
     ],
     # 点击茧中蝶影
     [
         {
             'type': 'default',
-            'target': fusiden.utils.pack(action.tap_left, gf, 0),
+            'target': fusiden.utils.pack(gf.tap_in, *target['shortcut.activity.tpi']),
             'next': 'next'
         }
     ],
@@ -119,12 +99,13 @@ chain_end_deass = [
         {
             'type': 'break_case',
             'match': r'Sprite-Add',
-            'target': fusiden.utils.pack(gf.tap_in, *[750, 270, 810, 290]),
-            'next': [chain_main, 0]
+            'target': 'pass',
+            'next': task_entrance
         }
     ]
 ]
-chain_deassembly = action.generate_chain_deassembly(gf, [chain_end_deass, 0])
+# chain_deassembly = action.generate_chain_deassembly(gf, [chain_end_factory, 0])
+chain_enhance = action.generate_chain_enhance(gf, [chain_end_factory, 0])
 chain_main.extend(
     [
         # 点击确认出击
@@ -143,7 +124,8 @@ chain_main.extend(
                 'type': 'break_case',
                 'match': r'.*MessageboxConstructionConfirmBox',
                 'target': fusiden.utils.pack(gf.tap_in, *target['combat.setting.enhance.tpi']),
-                'next': [chain_deassembly, 0]
+                # 'next': [chain_deassembly, 0]
+                'next': [chain_enhance, 0]
             },
             # 等一下
             {
@@ -226,7 +208,7 @@ chain_main.extend(
                 'match': r'请求补给!!',
                 'target': 'pass',
                 'next': 'next'
-            },
+            }
         ],
         # 噪音
         [
@@ -360,7 +342,7 @@ chain_main.extend(
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gf.tap_in, *[660, 120, 1360, 630]),
+                'target': fusiden.utils.pack(gf.tap_in, *target['battle.finish.somewhere.tpi']),
                 'next': 'next'
             },
         ],
@@ -377,7 +359,7 @@ chain_main.extend(
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gf.tap_in, *[660, 120, 1360, 630]),
+                'target': fusiden.utils.pack(gf.tap_in, *target['battle.finish.somewhere.tpi']),
                 'next': 'next'
             },
         ],
@@ -386,7 +368,8 @@ chain_main.extend(
             {
                 'type': 'break_case',
                 'match': r'.*MessageboxMessageBox',
-                'target': fusiden.utils.pack(gf.tap_in, *[1300, 100, 1400, 630]),
+                'target': fusiden.utils.pack(gf.tap_in,
+                                             *target['battle.finish.rewrad.somewhere.tpi']),
                 'next': 'next'
             },
         ],
@@ -402,7 +385,7 @@ chain_main.extend(
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gf.tap_in, *[660, 120, 1360, 630]),
+                'target': fusiden.utils.pack(gf.tap_in, *target['battle.finish.somewhere.tpi']),
                 'next': 'next'
             },
         ],

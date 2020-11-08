@@ -136,12 +136,12 @@ class GFControl(AndroidControl):
         self.logcat_queue = queue.Queue()
         self.logcat_proc = None
 
-    def start_logcat(self, *, arg=None):
+    def _start_logcat(self, *, arg=None):
         '''
         start logcat then put needed logcat in queue
         '''
         # stop current running subproc
-        self.stop_logcat()
+        self._stop_logcat()
         # get time and pid
         now = self.get_time()
         pid = self.get_pid('com.sunborn.girlsfrontline.cn')
@@ -160,9 +160,9 @@ class GFControl(AndroidControl):
                                             stderr=subprocess.PIPE,
                                             stdin=subprocess.PIPE)
         # make sure logcat will be killed
-        atexit.register(self.stop_logcat)
+        atexit.register(self._stop_logcat)
 
-    def stop_logcat(self, *, arg=None):
+    def _stop_logcat(self, *, arg=None):
         '''
         start logcat then put needed logcat in queue
         '''
@@ -177,8 +177,11 @@ class GFControl(AndroidControl):
         # read log
         pre_line = self.logcat_proc.stdout.readline()
         while not stop_event.is_set():
-            # TODO: readline block
-            current_line = self.logcat_proc.stdout.readline()
+            try:
+                current_line = self.logcat_proc.stdout.readline()
+            except AttributeError:
+                # logcat subproc killed
+                stop_event.set()
             # check if needed
             if pre_line and b'DebugLogHandler' in current_line:
                 current_log = pre_line.rstrip().decode('utf-8')
@@ -274,7 +277,7 @@ class GFControl(AndroidControl):
             raise ValueError(
                 '\'type\'value must be \'case\', \'break_case\' or \'default\'')
 
-        self.start_logcat()
+        self._start_logcat()
         # declare event to stop logcat
         store_thread_stop_event = threading.Event()
         # launch the thread
@@ -299,6 +302,7 @@ class GFControl(AndroidControl):
         # run task
         timeout_target = lambda *args, **kwargs: None
         re_result = None
+        get_wait = 0.2
         timer = utils.Timer()
         while not stop_event.is_set():
             # reset log
@@ -315,13 +319,13 @@ class GFControl(AndroidControl):
                     # pick a log for this task
                     if not log:
                         log = self.logcat_queue.get(
-                            block=True, timeout=0.2)
+                            block=True, timeout=get_wait)
                         timer.reset()
                         self.logcat_queue.task_done()
                 except queue.Empty:
                     # get failed, do something after timeout
                     timer.start()
-                    if timer.check() >= block_timeout:
+                    if timer.check() >= block_timeout - get_wait:
                         timer.reset()
                         timeout_target()
                     break
@@ -334,7 +338,7 @@ class GFControl(AndroidControl):
                         break
 
         # kill logcat subproc
-        self.stop_logcat()
+        self._stop_logcat()
         # stop store log thread
         store_thread_stop_event.set()
         store_thread.join()

@@ -17,6 +17,12 @@
         440,
         640
     ],
+    "battle.team.supply.tpi": [
+        1250,
+        530,
+        1390,
+        590
+    ],
     "battle.plan_mode.tpi": [
         100,
         570,
@@ -34,6 +40,18 @@
         470,
         710,
         520
+    ],
+    "battle.finish.somewhere.tpi": [
+        660,
+        120,
+        1360,
+        630
+    ],
+    "battle.finish.rewrad.somewhere.tpi": [
+        1300,
+        100,
+        1400,
+        630
     ],
     "combat.mission.right_second.tpi": [
         640,
@@ -95,6 +113,12 @@
         750,
         250
     ],
+    "factory.enhance.enhance.tpi": [
+        1250,
+        610,
+        1370,
+        660
+    ],
     "global.back.tp": [
         240,
         52
@@ -133,10 +157,16 @@
         550,
         170
     ],
+    "shortcut.activity.tpi": [
+        500,
+        340,
+        610,
+        390
+    ],
     "warehouse.confirm.tpi": [
         1260,
         590,
         1370,
-        700
+        670
     ]
 }

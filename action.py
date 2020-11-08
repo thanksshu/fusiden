@@ -2,11 +2,9 @@
 常用函数
 """
 import json
-from functools import partial
 from random import SystemRandom
 
-from fusiden import GFControl
-from fusiden.utils import log_func
+import fusiden
 
 with open('/home/thanksshu/Documents/Girlsfront/target.json') as fp:
     target = json.load(fp)
@@ -15,8 +13,7 @@ random = SystemRandom()
 
 
 # 其他操作
-@log_func
-def noise(gfcontrol: GFControl, min_times=0, max_times=3, *, arg=None):
+def noise(gfcontrol: fusiden.GFControl, min_times=0, max_times=3, *, arg=None):
     """
     乱点以产生噪音
     """
@@ -29,8 +26,7 @@ def noise(gfcontrol: GFControl, min_times=0, max_times=3, *, arg=None):
 
 
 # combat factory research
-@log_func
-def tap_left(gfcontrol: GFControl, number, *, arg=None):
+def tap_left(gfcontrol: fusiden.GFControl, number, *, arg=None):
     '''
     combat 左侧 选择
     '''
@@ -40,19 +36,17 @@ def tap_left(gfcontrol: GFControl, number, *, arg=None):
 
 
 # combat
-@log_func
-def tap_right(gfcontrol: GFControl, number, *, arg=None):
+def tap_right(gfcontrol: fusiden.GFControl, number, *, arg=None):
     """
     combat 右侧 选择
     """
-    y_top = 250 + number * 119
+    y_top = 260 + number * 119
     y_bott = 330 + number * 119
     gfcontrol.tap_in(590, y_top, 1370, y_bott)
 
 
 # combat
-@log_func
-def tap_middle(gfcontrol: GFControl, number, *, arg=None):
+def tap_middle(gfcontrol: fusiden.GFControl, number, *, arg=None):
     """
     combat 中间 选择
     """
@@ -62,8 +56,7 @@ def tap_middle(gfcontrol: GFControl, number, *, arg=None):
 
 
 # combat
-@log_func
-def tap_difficuty(gfcontrol: GFControl, number, *, arg=None):
+def tap_difficuty(gfcontrol: fusiden.GFControl, number, *, arg=None):
     """
     combat 右上 选择
     """
@@ -73,7 +66,6 @@ def tap_difficuty(gfcontrol: GFControl, number, *, arg=None):
 
 
 # battle team
-@log_func
 def tap_fast_repair(gfcontrol, number, *, arg=None):
     """
     battle 点击梯队内人形
@@ -84,23 +76,21 @@ def tap_fast_repair(gfcontrol, number, *, arg=None):
 
 
 # formation
-@log_func
 def tap_doll_in_team(gfcontrol, number, *, arg=None):
     """
     formation 编队选择人形
     """
-    x_left = 320 + number * 183
-    x_right = 390 + number * 183
+    x_left = 340 + number * 183
+    x_right = 400 + number * 183
     gfcontrol.tap_in(x_left, 170, x_right, 490)
 
 
 # warehouse
-@log_func
 def tap_doll_in_warehouse(gfcontrol, line, row, *, arg=None):
     """
     warehouse 选择人形
     """
-    x_left = 180 + row * 174
+    x_left = 210 + row * 174
     x_right = 260 + row * 174
     y_top = 170 + line * 301
     y_bott = 330 + line * 301
@@ -108,7 +98,7 @@ def tap_doll_in_warehouse(gfcontrol, line, row, *, arg=None):
 
 
 # 生成拆解任务
-def generate_chain_deassembly(gfcontrol: GFControl, next_task):
+def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
     '''
     return task deassembly
     '''
@@ -118,7 +108,7 @@ def generate_chain_deassembly(gfcontrol: GFControl, next_task):
             {
                 'type': 'break_case',
                 'match': r'.*RetireMain',
-                'target': partial(gfcontrol.tap_in, *target['factory.deassembly.tpi']),
+                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['factory.deassembly.tpi']),
                 'next': 'next'
             }
         ],
@@ -126,7 +116,8 @@ def generate_chain_deassembly(gfcontrol: GFControl, next_task):
         [
             {
                 'type': 'default',
-                'target': partial(gfcontrol.tap_in, *target['factory.deassembly.doll.tpi']),
+                'target': fusiden.utils.pack(gfcontrol.tap_in,
+                                             *target['factory.deassembly.doll.tpi']),
                 'next': 'next'
             }
         ],
@@ -135,7 +126,7 @@ def generate_chain_deassembly(gfcontrol: GFControl, next_task):
             {
                 'type': 'break_case',
                 'match': r'.*CharacterListLabel',
-                'target': partial(gfcontrol.tap_in, *target['warehouse.confirm.tpi']),
+                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['warehouse.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -144,7 +135,7 @@ def generate_chain_deassembly(gfcontrol: GFControl, next_task):
             {
                 'type': 'break_case',
                 'match': r'.*实例化数目0销毁数目0',
-                'target': partial(gfcontrol.tap_in, *target['warehouse.confirm.tpi']),
+                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['warehouse.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -153,7 +144,123 @@ def generate_chain_deassembly(gfcontrol: GFControl, next_task):
             {
                 'type': 'break_case',
                 'match': r'.*SmallGunItem',
-                'target': partial(gfcontrol.tap_in, *target['factory.deassembly.deassembly.tpi']),
+                'target': fusiden.utils.pack(gfcontrol.tap_in,
+                                             *target['factory.deassembly.deassembly.tpi']),
+                'next': 'next'
+            },
+            # 再无低星人形
+            {
+                'type': 'break_case',
+                'match': r'.*实例化数目0销毁数目0',
+                'target': 'pass',
+                'next': None
+            }
+        ],
+        # 结束
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*Gun/retireGun',
+                'target': 'pass',
+                'next': next_task
+            }
+        ],
+    ]
+    return task
+
+
+# 生成强化任务
+def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
+    '''
+    return task enhance
+    '''
+    task = [
+        # 点击强化
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*CombineMain',
+                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['factory.enhance.tpi']),
+                'next': 'next'
+            }
+        ],
+        # 点击选择人形
+        [
+            {
+                'type': 'default',
+                'target': fusiden.utils.pack(gfcontrol.tap_in,
+                                             *target['factory.enhance.choose_main.tpi']),
+                'next': 'next'
+            }
+        ],
+        # 等一下
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*UGUIPrefabs/CharacterList/CharacterListLabel',
+                'target': fusiden.utils.pack(fusiden.utils.rsleep, 0.5),
+                'next': 'next'
+            },
+        ],
+        # 选择人形
+        [
+            {
+                'type': 'default',
+                'target': fusiden.utils.pack(tap_doll_in_warehouse, *[gfcontrol, 0, 0]),
+                'next': 'next'
+            },
+        ],
+        # 不可编辑 点击选择素材
+        # TODO: 结束失败
+        [
+            # 含有不可编辑人形
+            {
+                'type': 'break_case',
+                'match': r'.*CharacterDisabled',
+                'target': 'pass',
+                'next': 'self'
+            },
+            # 不可编辑
+            {
+                'type': 'break_case',
+                'match': r'.*LiteMessageTips',
+                'target': 'pass',
+                'next': None
+            },
+            # 点击选择素材
+            {
+                'type': 'default',
+                'target': fusiden.utils.pack(gfcontrol.tap_in,
+                                             *target['factory.enhance.choose_sub.tpi']),
+                'next': 'next'
+            }
+        ],
+        # 点击智能选择
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*实例化数目',
+                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['warehouse.confirm.tpi']),
+                'next': 'next'
+            }
+        ],
+        # 点击确定
+        [
+            {
+                'type': 'break_case',
+                'match': r'.*实例化数目0销毁数目0',
+                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['warehouse.confirm.tpi']),
+                'next': 'next'
+            }
+        ],
+        # 强化 再无低星人形
+        [
+            # 强化
+            {
+                'type': 'break_case',
+                'match': r'.*SmallGunItem',
+                'target': fusiden.utils.pack(gfcontrol.tap_in,
+                                             *target['factory.enhance.enhance.tpi']),
                 'next': 'next'
             },
             # 再无低星人形
@@ -164,22 +271,14 @@ def generate_chain_deassembly(gfcontrol: GFControl, next_task):
                 'next': None
             },
         ],
-        # 打开快捷菜单
+        # 结束
         [
             {
                 'type': 'break_case',
-                'match': r'.*retireGun',
-                'target': partial(gfcontrol.tap_in, *target['global.shortcut.tpi']),
-                'next': 'next'
-            }
-        ],
-        # 点击战斗
-        [
-            {
-                'type': 'default',
-                'target': partial(gfcontrol.tap, *target['shortcut.combat.tp']),
+                'match': r'.*eatGun',
+                'target': 'pass',
                 'next': next_task
             }
-        ]
+        ],
     ]
     return task
