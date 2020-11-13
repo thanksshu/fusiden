@@ -11,12 +11,12 @@ import action
 
 parser = argparse.ArgumentParser(description='auto run 0-2')
 parser.add_argument('hitman', type=str, help='hitman in the team now')
-parser.add_argument('-e', type=int, default=3, nargs='?',
-                    help='entrance number for the chain')
 parser.add_argument('-f', action='store_true', default=False,
                     help='directly fix m16')
 parser.add_argument('-i', action='store_true', default=False,
                     help='init map')
+parser.add_argument('-e', action='store_true', default=False,
+                    help='enhance when full')
 args = parser.parse_args()
 
 random = SystemRandom()
@@ -33,7 +33,7 @@ def tap_airport(*, arg=None):
     """
     点击机场
     """
-    gf.tap(530, 490)
+    gf.monkey_tap([530, 523])
 
 
 @fusiden.utils.log_func
@@ -41,7 +41,7 @@ def tap_hq(*, arg=None):
     """
     点击指挥部
     """
-    gf.tap(764, 492)
+    gf.monkey_tap([764, 523])
 
 
 @fusiden.utils.log_func
@@ -49,7 +49,7 @@ def tap_waypoint(*, arg=None):
     """
     点击左上路径点
     """
-    gf.tap(687, 142)
+    gf.monkey_tap([687, 142])
 
 
 @fusiden.utils.log_func
@@ -57,7 +57,30 @@ def tap_ehq(*, arg=None):
     """
     点击敌指挥部
     """
-    gf.tap(954, 164)
+    gf.monkey_tap([954, 164])
+
+
+def generate_change_hitman(hitman):
+    """
+    生成更换打手函数
+    """
+    hitman = hitman if hitman else hitman
+
+    hitman_list = ['416', [0, 5], 'sop', [0, 4]]
+
+    @fusiden.utils.log_func
+    def _change_hitman(*, arg=None):
+        """
+        更换打手
+        """
+        nonlocal hitman, hitman_list
+        if hitman == hitman_list[0]:
+            action.tap_doll_in_warehouse(gf, *hitman_list[3])
+            hitman = hitman_list[2]
+        elif hitman == hitman_list[2]:
+            action.tap_doll_in_warehouse(gf, *hitman_list[1])
+            hitman = hitman_list[0]
+    return _change_hitman
 
 
 def generate_init_map(first_init=False):
@@ -84,18 +107,17 @@ def generate_init_map(first_init=False):
                 random_x_end = random.randint(300, 1200)
                 random_y_end = random_y_start - 4000
 
-                gf.swipe(random_x_start, random_y_start,
-                         random_x_end, random_y_end)
+                gf.monkey_swipe([random_x_start, random_y_start],
+                                [random_x_end, random_y_end])
 
             # 上拉地图
             random_x_start = random.randint(600, 1200)
             random_x_end = random.randint(600, 1200)
             random_y_start = random.randint(50, 340)
             random_y_end = random_y_start + 500
-
-            gf.swipe(random_x_start, random_y_start,
-                     random_x_end, random_y_end,
-                     duration=1200, radius=0, delta=50)
+            gf.monkey_swipe([random_x_start, random_y_start],
+                            [random_x_end, random_y_end],
+                            duration=1200, radius=0, delta=0)
     return set_flag, init
 
 
@@ -147,29 +169,6 @@ def generate_repair_m16(direct_fix=False):
     return _set_repair_flag, _check_m16
 
 
-def generate_change_hitman(hitman):
-    """
-    生成更换打手函数
-    """
-    hitman = hitman if hitman else hitman
-
-    @fusiden.utils.log_func
-    def _change_hitman(*, arg=None):
-        """
-        更换打手
-        """
-        nonlocal hitman
-        if hitman == 'g11':
-            # to an94
-            action.tap_doll_in_warehouse(gf, 0, 5)
-            hitman = 'an94'
-        elif hitman == 'an94':
-            # to g11
-            action.tap_doll_in_warehouse(gf, 0, 2)
-            hitman = 'g11'
-    return _change_hitman
-
-
 output = generate_output()
 set_repair_flag, check_m16 = generate_repair_m16(args.f)
 change_hitman = generate_change_hitman(args.hitman)
@@ -189,7 +188,7 @@ chain_end.extend(
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gf.tap_in, *target['global.shortcut.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['global.shortcut.tpi']),
                 'next': 'next'
             }
         ],
@@ -197,7 +196,7 @@ chain_end.extend(
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gf.tap, *target['shortcut.combat.tp']),
+                'target': fusiden.utils.pack(gf.monkey_tap, *target['shortcut.combat.tp']),
                 'next': 'next'
             }
         ],
@@ -238,7 +237,8 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*Function：Mission/combinationInfo',
-                'target': fusiden.utils.pack(gf.tap_in, *target['combat.setting.normal.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in,
+                                             *target['combat.setting.normal.tpi']),
                 'next': 'next'
             }
         ],
@@ -248,8 +248,9 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*RevertcanvasMissionInfo',
-                'target': fusiden.utils.pack(gf.tap_in, *target['combat.setting.enhance.tpi']),
-                'next': [chain_deassembly, 0]
+                'target': fusiden.utils.pack(gf.monkey_tap_in,
+                                             *target['combat.setting.enhance.tpi']),
+                'next': [chain_deassembly, 0] if not args.e else [chain_enheance, 0]
             },
             # 初始化地图
             {
@@ -306,7 +307,8 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*MessageboxNormalFixConfirmBox',
-                'target': fusiden.utils.pack(gf.tap_in, *target['repair.onepress.confirm.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in,
+                                             *target['repair.onepress.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -323,7 +325,8 @@ chain_0_2.extend(
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.team.formation.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in,
+                                             *target['battle.team.formation.tpi']),
                 'next': 'next'
             }
         ],
@@ -350,7 +353,7 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*RequestChangeTeam success',
-                'target': fusiden.utils.pack(gf.tap, *target['global.back.tp']),
+                'target': fusiden.utils.pack(gf.monkey_tap, *target['global.back.tp']),
                 'next': 'next'
             }
         ],
@@ -376,7 +379,7 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*MessageboxDeploymentTeamInfo',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.team.confirm.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['battle.team.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -402,7 +405,7 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*MessageboxDeploymentTeamInfo',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.team.confirm.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['battle.team.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -411,7 +414,7 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'刷新UI0',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.start.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['battle.start.tpi']),
                 'next': 'next'
             }
         ],
@@ -447,7 +450,7 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*MessageboxDeploymentTeamInfo',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.team.supply.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['battle.team.supply.tpi']),
                 'next': 'next'
             }
         ],
@@ -474,7 +477,7 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*关闭BUildUI面板',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.plan_mode.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['battle.plan_mode.tpi']),
                 'next': 'next'
             }
         ],
@@ -501,7 +504,7 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*更新快捷点信息25',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.start.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['battle.start.tpi']),
                 'next': 'next'
             }
         ],
@@ -511,7 +514,7 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*变更计划模式状态pause',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.popup.cancel.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['battle.popup.cancel.tpi']),
                 'next': 'self'
             },
             {
@@ -534,7 +537,7 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': '.*变更计划模式状态pause',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.popup.cancel.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['battle.popup.cancel.tpi']),
                 'next': 'self'
             },
             {
@@ -546,16 +549,17 @@ chain_0_2.extend(
         ],
         # 结束回合
         [
+            # 防中断
             {
                 'type': 'break_case',
                 'match': r'.*变更计划模式状态pause',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.popup.cancel.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['battle.popup.cancel.tpi']),
                 'next': 'self'
             },
             {
                 'type': 'break_case',
-                'match': r'.*销毁时间',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.start.tpi']),
+                'match': r'.*销毁',
+                'target': fusiden.utils.pack(gf.monkey_tap_in, *target['battle.start.tpi']),
                 'next': 'next'
             }
         ],
@@ -564,7 +568,7 @@ chain_0_2.extend(
             {
                 'type': 'break_case',
                 'match': r'.*清除missionaction',
-                'target': fusiden.utils.pack(fusiden.utils.rsleep, 4),
+                'target': fusiden.utils.pack(fusiden.utils.rsleep, 4.5),
                 'next': 'next'
             }
         ],
@@ -572,7 +576,8 @@ chain_0_2.extend(
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.finish.somewhere.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in,
+                                             *target['battle.finish.somewhere.tpi']),
                 'next': 'next'
             }
         ],
@@ -589,7 +594,8 @@ chain_0_2.extend(
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.finish.somewhere.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in,
+                                             *target['battle.finish.somewhere.tpi']),
                 'next': 'next'
             }
         ],
@@ -605,7 +611,8 @@ chain_0_2.extend(
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.finish.somewhere.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in,
+                                             *target['battle.finish.somewhere.tpi']),
                 'next': 'next'
             }
         ],
@@ -621,12 +628,14 @@ chain_0_2.extend(
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gf.tap_in, *target['battle.finish.somewhere.tpi']),
+                'target': fusiden.utils.pack(gf.monkey_tap_in,
+                                             *target['battle.finish.somewhere.tpi']),
                 'next': [chain_end, 2]
             }
         ]
     ]
 )
+
 chain_entrance.extend(
     [
         # 清屏计数
@@ -647,4 +656,5 @@ chain_entrance.extend(
     ]
 )
 
+gf.start_monkey()
 gf.run_task([chain_entrance, 0])

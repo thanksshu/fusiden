@@ -6,7 +6,7 @@ from random import SystemRandom
 
 import fusiden
 
-with open('/home/thanksshu/Documents/Girlsfront/target.json') as fp:
+with open('target.json') as fp:
     target = json.load(fp)
 
 random = SystemRandom()
@@ -20,9 +20,9 @@ def noise(gfcontrol: fusiden.GFControl, min_times=0, max_times=3, *, arg=None):
     if random.randint(0, 1) == 1 or min_times > 0:
         times = random.randint(min_times, max_times)
         for _ in range(0, times):
-            gfcontrol.tap_in(70, 200, 300, 450)
+            gfcontrol.monkey_tap_in([70, 200], [300, 450])
         for _ in range(0, random.randint(0, max_times - times)):
-            gfcontrol.tap_in(1250, 150, 1460, 550)
+            gfcontrol.monkey_tap_in([1250, 150], [1460, 550])
 
 
 # combat factory research
@@ -32,7 +32,7 @@ def tap_left(gfcontrol: fusiden.GFControl, number, *, arg=None):
     '''
     y_top = 108 + number * 90
     y_bott = 187 + number * 90
-    gfcontrol.tap_in(120, y_top, 280, y_bott)
+    gfcontrol.monkey_tap_in([120, y_top], [280, y_bott])
 
 
 # combat
@@ -42,7 +42,7 @@ def tap_right(gfcontrol: fusiden.GFControl, number, *, arg=None):
     """
     y_top = 260 + number * 119
     y_bott = 330 + number * 119
-    gfcontrol.tap_in(590, y_top, 1370, y_bott)
+    gfcontrol.monkey_tap_in([590, y_top], [1370, y_bott])
 
 
 # combat
@@ -52,7 +52,7 @@ def tap_middle(gfcontrol: fusiden.GFControl, number, *, arg=None):
     """
     y_top = 103 + number * 101
     y_bott = 192 + number * 101
-    gfcontrol.tap_in(300, y_top, 420, y_bott)
+    gfcontrol.monkey_tap_in([300, y_top], [420, y_bott])
 
 
 # combat
@@ -62,7 +62,7 @@ def tap_difficuty(gfcontrol: fusiden.GFControl, number, *, arg=None):
     """
     x_left = 1047 + number * 115
     x_right = 1151 + number * 115
-    gfcontrol.tap_in(x_left, 160, x_right, 220)
+    gfcontrol.monkey_tap_in([x_left, 160], [x_right, 220])
 
 
 # battle team
@@ -72,7 +72,7 @@ def tap_fast_repair(gfcontrol, number, *, arg=None):
     """
     x_left = 323 + number * 180
     x_right = 436 + number * 180
-    gfcontrol.tap_in(x_left, 160, x_right, 580)
+    gfcontrol.monkey_tap_in([x_left, 160], [x_right, 580])
 
 
 # formation
@@ -82,7 +82,7 @@ def tap_doll_in_team(gfcontrol, number, *, arg=None):
     """
     x_left = 340 + number * 183
     x_right = 400 + number * 183
-    gfcontrol.tap_in(x_left, 170, x_right, 490)
+    gfcontrol.monkey_tap_in([x_left, 170], [x_right, 490])
 
 
 # warehouse
@@ -94,7 +94,7 @@ def tap_doll_in_warehouse(gfcontrol, line, row, *, arg=None):
     x_right = 260 + row * 174
     y_top = 170 + line * 301
     y_bott = 330 + line * 301
-    gfcontrol.tap_in(x_left+50, y_top, x_right, y_bott)
+    gfcontrol.monkey_tap_in([x_left, y_top], [x_right, y_bott])
 
 
 # 生成拆解任务
@@ -107,8 +107,16 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
         [
             {
                 'type': 'break_case',
-                'match': r'.*RetireMain',
-                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['factory.deassembly.tpi']),
+                'match': r'.*预加载结束',
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
+                                             *target['factory.deassembly.tpi']),
+                'next': 'next'
+            }
+        ],
+        [
+            {
+                'type': 'default',
+                'target': fusiden.utils.pack(fusiden.utils.rsleep, 0.2),
                 'next': 'next'
             }
         ],
@@ -116,7 +124,7 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gfcontrol.tap_in,
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
                                              *target['factory.deassembly.doll.tpi']),
                 'next': 'next'
             }
@@ -126,7 +134,8 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
             {
                 'type': 'break_case',
                 'match': r'.*CharacterListLabel',
-                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['warehouse.confirm.tpi']),
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
+                                             *target['warehouse.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -135,7 +144,8 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
             {
                 'type': 'break_case',
                 'match': r'.*实例化数目0销毁数目0',
-                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['warehouse.confirm.tpi']),
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
+                                             *target['warehouse.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -144,7 +154,7 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
             {
                 'type': 'break_case',
                 'match': r'.*SmallGunItem',
-                'target': fusiden.utils.pack(gfcontrol.tap_in,
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
                                              *target['factory.deassembly.deassembly.tpi']),
                 'next': 'next'
             },
@@ -179,8 +189,9 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
         [
             {
                 'type': 'break_case',
-                'match': r'.*CombineMain',
-                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['factory.enhance.tpi']),
+                'match': r'.*预加载结束',
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
+                                             *target['factory.enhance.tpi']),
                 'next': 'next'
             }
         ],
@@ -188,7 +199,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
         [
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gfcontrol.tap_in,
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
                                              *target['factory.enhance.choose_main.tpi']),
                 'next': 'next'
             }
@@ -230,7 +241,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
             # 点击选择素材
             {
                 'type': 'default',
-                'target': fusiden.utils.pack(gfcontrol.tap_in,
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
                                              *target['factory.enhance.choose_sub.tpi']),
                 'next': 'next'
             }
@@ -240,7 +251,8 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
             {
                 'type': 'break_case',
                 'match': r'.*实例化数目',
-                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['warehouse.confirm.tpi']),
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
+                                             *target['warehouse.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -249,7 +261,8 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
             {
                 'type': 'break_case',
                 'match': r'.*实例化数目0销毁数目0',
-                'target': fusiden.utils.pack(gfcontrol.tap_in, *target['warehouse.confirm.tpi']),
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
+                                             *target['warehouse.confirm.tpi']),
                 'next': 'next'
             }
         ],
@@ -259,7 +272,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
             {
                 'type': 'break_case',
                 'match': r'.*SmallGunItem',
-                'target': fusiden.utils.pack(gfcontrol.tap_in,
+                'target': fusiden.utils.pack(gfcontrol.monkey_tap_in,
                                              *target['factory.enhance.enhance.tpi']),
                 'next': 'next'
             },

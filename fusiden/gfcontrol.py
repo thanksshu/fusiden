@@ -5,6 +5,7 @@ import atexit
 import queue
 import re
 import shlex
+import socket
 import subprocess
 import threading
 from random import SystemRandom
@@ -35,33 +36,107 @@ class AndroidControl():
             device.append(id_device.decode('utf-8').rsplit())
         return device
 
-    def __init__(self, device_index=0, device_id=None):
+    def __init__(self, device_index=0, device_id=None, monkey_port=5556):
         '''
         specify a device
         '''
-        if device_id:
+        if device_id is not None:
             self.device_id = device_id
         else:
             self.device_id = self.list_device()[device_index][0]
+
+        self.monkey_port = monkey_port
+        self.monkey = None
+
+    def start_monkey(self):
+        '''
+        start monkey
+        '''
+        # kill existing monkey
+        self.stop_monkey()
+
+        # forward port
+        cmd = (f'{self.adbpath} -s {self.device_id} '
+               f'forward tcp:{self.monkey_port} tcp:{self.monkey_port}')
+        subprocess.run(shlex.split(
+            cmd), capture_output=True, check=True)
+
+        # start monkey subproc
+        popen = self.adb(f'shell monkey --port {self.monkey_port}')
+        while True:
+            line = popen.stderr.readline()
+            if line == b'data="5556"\n':
+                break
+        popen.kill()
+
+        # start monkey tcp connection
+        self.monkey = socket.create_connection(
+            ('localhost', self.monkey_port), 100)
+        while self.send_monkey('sleep 0') == '':
+            self.monkey.close()
+            self.monkey = socket.create_connection(
+                ('localhost', self.monkey_port))
+
+        # make sure all monkey related is stopped
+        atexit.register(self.stop_monkey)
+
+    def stop_monkey(self):
+        '''
+        stop monkey
+        '''
+        if self.monkey is not None:
+            # stop monkey
+            self.send_monkey('quit')
+
+            # close socket
+            self.monkey.close()
+            self.monkey = None
+
+        # kill monkey
+        monkey_pid = self.get_pid('com.android.commands.monkey')
+        if monkey_pid is not None:
+            kill_cmd = (f'{self.adbpath} -s {self.device_id} '
+                        f'shell kill {monkey_pid}')
+            try:
+                subprocess.run(shlex.split(
+                    kill_cmd), capture_output=True, check=True)
+            except subprocess.CalledProcessError:
+                # already killed
+                pass
+
+        # remove forward port
+        cmd = (f'{self.adbpath} -s {self.device_id} '
+               f'forward --remove tcp:{self.monkey_port}')
+        try:
+            subprocess.run(shlex.split(cmd), capture_output=True, check=True)
+        except subprocess.CalledProcessError:
+            # no port forward
+            pass
+
+    def send_monkey(self, cmd):
+        """
+        send cmd to monkey
+        """
+        self.monkey.sendall(bytes(cmd, 'utf-8') + b'\n')
+        return self.monkey.recv(32).decode('utf-8')
 
     @property
     def is_alive(self):
         '''
         check adb connection, return False when dead
         '''
-        proc = self.shell(':')
+        proc = self.adb('shell :')
         proc.communicate()
         if proc.returncode != 0:
             return False
         return True
 
-    def shell(self, command, **kwarg):
+    def adb(self, command, **kwarg):
         '''
         send shell command
         '''
         args = shlex.split(
-            f'{self.adbpath} -s {self.device_id} shell {command}')
-        print(args)
+            f'{self.adbpath} -s {self.device_id} {command}')
         popen = subprocess.Popen(args,
                                  stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE,
@@ -85,21 +160,17 @@ class AndroidControl():
         return pid of a application
         '''
         cmd = f'{self.adbpath} -s {self.device_id} shell pidof -s {package_name}'
-        result = subprocess.run(shlex.split(cmd),
-                                capture_output=True, check=True)
-        return result.stdout.rstrip().decode('utf-8')
+        try:
+            result = subprocess.run(shlex.split(cmd),
+                                    capture_output=True, check=True)
+        except subprocess.CalledProcessError:
+            pid = None
+        else:
+            pid = int(result.stdout.rstrip().decode('utf-8'))
+        return pid
 
-    def tap(self, pos_x, pos_y, radius=5, duration=50, delta=20, *, arg=None):
-        '''
-        tap somewhere
-        '''
-        pos_x = pos_x + random.randint(-radius, radius)
-        pos_y = pos_y + random.randint(-radius, radius)
-        self.swipe(pos_x, pos_y, pos_x, pos_y, radius=0,
-                   duration=duration, delta=delta)
-
-    def swipe(self, pos_x_start, pos_y_start,  pos_x_end, pos_y_end,
-              radius=5, duration=200, delta=100, *, arg=None):
+    def adb_swipe(self, pos_x_start, pos_y_start,  pos_x_end, pos_y_end,
+                  radius=5, duration=200, delta=100, *, arg=None):
         '''
         swipe
         '''
@@ -114,16 +185,94 @@ class AndroidControl():
         subprocess.run(shlex.split(cmd),
                        capture_output=True, check=True)
 
-    def tap_in(self, left_up_x, left_up_y, right_bottom_x, right_bottom_y,
-               duration=80, delta=15, *, arg=None):
+    def adb_tap(self, pos_x, pos_y, radius=5, duration=50, delta=20, *, arg=None):
+        '''
+        tap somewhere
+        '''
+        pos_x = pos_x + random.randint(-radius, radius)
+        pos_y = pos_y + random.randint(-radius, radius)
+        self.adb_swipe(pos_x, pos_y, pos_x, pos_y, radius=0,
+                       duration=duration, delta=delta)
+
+    def adb_tap_in(self, left_up_x, left_up_y, right_bottom_x, right_bottom_y,
+                   duration=80, delta=15, *, arg=None):
         '''
         tap somewhere in a square
         '''
         pos_x = random.randint(left_up_x, right_bottom_x)
         pos_y = random.randint(left_up_y, right_bottom_y)
 
-        self.tap(pos_x, pos_y, radius=0,
-                 duration=duration, delta=delta)
+        self.adb_tap(pos_x, pos_y, radius=0,
+                     duration=duration, delta=delta)
+
+    def monkey_swipe(self, pos_start, pos_end,
+                     radius=5, step_duration=5, duration=200, delta=100, *, arg=None):
+        '''
+        swipe with monkey
+        '''
+        # prevent swipe too fast
+        self.send_monkey('sleep 200')
+
+        pos_start = [pos_start[0] + random.randint(-radius, radius),
+                     pos_start[1] + random.randint(-radius, radius)]
+        pos_end = [pos_end[0] + random.randint(-radius, radius),
+                   pos_end[1] + random.randint(-radius, radius)]
+        total_length = [pos_end[0] - pos_start[0], pos_end[1] - pos_start[1]]
+        duration = duration + random.randint(-delta, delta)
+        step_count = duration / step_duration
+
+        # swipe with move speed linear slow down to zero
+        pre_speed = [2 * total_length[0] / duration,
+                     2 * total_length[1] / duration]
+        delta_speed = [pre_speed[0] / step_count, pre_speed[1] / step_count]
+        curr_speed = [pre_speed[0] - delta_speed[0],
+                      pre_speed[1] - delta_speed[1]]
+        next_pos = [pos_start[0], pos_start[1]]
+        self.send_monkey(f'touch down {pos_start[0]} {pos_start[1]}')
+        for _ in range(round(step_count)):
+            # lenth of this step
+            step_length = [(pre_speed[0] + curr_speed[0]) * step_duration / 2,
+                           (pre_speed[1] + curr_speed[1]) * step_duration / 2]
+            pre_speed = curr_speed
+            # slow down
+            curr_speed = [pre_speed[0] - delta_speed[0],
+                          pre_speed[1] - delta_speed[1]]
+            next_pos = [next_pos[0] + step_length[0],
+                        next_pos[1] + step_length[1]]
+            self.send_monkey(f'sleep {step_duration}')
+            # use int() to make the value closer to zero
+            self.send_monkey(
+                f'touch move {int(next_pos[0])} {int(next_pos[1])}')
+
+        # try to prevent slide
+        for _ in range(round(1000 / step_count)):
+            self.send_monkey(f'sleep {step_duration}')
+            self.send_monkey(f'touch move {pos_end[0]} {pos_end[1]}')
+        self.send_monkey(f'touch up {pos_end[0]} {pos_end[1]}')
+
+    def monkey_tap(self, pos, radius=5, duration=50, delta=20, *, arg=None):
+        '''
+        tap somewhere
+        '''
+        # prevent from tap too fast
+        self.send_monkey('sleep 100')
+
+        pos = [pos[0] + random.randint(-radius, radius),
+               pos[1] + random.randint(-radius, radius)]
+        duration = duration + random.randint(-delta, delta)
+        self.send_monkey(f'touch down {pos[0]} {pos[1]}')
+        self.send_monkey(f'sleep {duration}')
+        self.send_monkey(f'touch up {pos[0]} {pos[1]}')
+
+    def monkey_tap_in(self, left_up, right_bottom, duration=80, delta=15, *, arg=None):
+        '''
+        tap somewhere in a square
+        '''
+        pos = [random.randint(left_up[0], right_bottom[0]),
+               random.randint(left_up[1], right_bottom[1])]
+
+        self.monkey_tap(pos, radius=0,
+                        duration=duration, delta=delta)
 
 
 class GFControl(AndroidControl):
@@ -131,8 +280,10 @@ class GFControl(AndroidControl):
     class for controling girlsfrontline
     '''
 
-    def __init__(self, device_index=0, device_id=None):
-        super().__init__(device_index=device_index, device_id=device_id)
+    def __init__(self, device_index=0, device_id=None, monkey_port=5556):
+        super().__init__(device_index=device_index,
+                         device_id=device_id,
+                         monkey_port=monkey_port)
         self.logcat_queue = queue.Queue()
         self.logcat_proc = None
 
@@ -153,14 +304,9 @@ class GFControl(AndroidControl):
         subprocess.run(shlex.split(cmd),
                        capture_output=True, check=True)
         # start logcat subproc
-        cmd = (f'{self.adbpath} -s {self.device_id}'
-               f' logcat -v raw -s Unity -T {shlex.quote(now)} --pid={pid}')
-        self.logcat_proc = subprocess.Popen(shlex.split(cmd),
-                                            stdout=subprocess.PIPE,
-                                            stderr=subprocess.PIPE,
-                                            stdin=subprocess.PIPE)
+        self.logcat_proc = self.adb(
+            f' logcat -v raw -s Unity -T {shlex.quote(now)} --pid={pid}')
         # make sure logcat will be killed
-        atexit.register(self._stop_logcat)
 
     def _stop_logcat(self, *, arg=None):
         '''
@@ -302,7 +448,6 @@ class GFControl(AndroidControl):
         # run task
         timeout_target = lambda *args, **kwargs: None
         re_result = None
-        get_wait = 0.2
         timer = utils.Timer()
         while not stop_event.is_set():
             # reset log
@@ -319,13 +464,13 @@ class GFControl(AndroidControl):
                     # pick a log for this task
                     if not log:
                         log = self.logcat_queue.get(
-                            block=True, timeout=get_wait)
+                            block=True, timeout=0.2)
                         timer.reset()
                         self.logcat_queue.task_done()
                 except queue.Empty:
                     # get failed, do something after timeout
                     timer.start()
-                    if timer.check() >= block_timeout - get_wait:
+                    if timer.check() >= block_timeout - 0.2:
                         timer.reset()
                         timeout_target()
                     break
