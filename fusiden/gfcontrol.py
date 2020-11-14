@@ -48,12 +48,12 @@ class AndroidControl():
         self.monkey_port = None
         self.monkey_socket = None
 
-    def start_monkey(self, monkey_port=5556, timeout=0.2):
+    def connect(self, monkey_port=5556, timeout=0.2):
         '''
         start monkey
         '''
         # kill existing monkey
-        self.stop_monkey()
+        self.close()
         self.monkey_port = monkey_port
 
         # forward port
@@ -79,9 +79,9 @@ class AndroidControl():
             self.monkey_socket.close()
 
         # make sure all monkey related is stopped
-        atexit.register(self.stop_monkey)
+        atexit.register(self.close)
 
-    def stop_monkey(self):
+    def close(self):
         '''
         stop monkey
         '''
@@ -171,7 +171,8 @@ class AndroidControl():
         return pid
 
     def swipe(self, pos_start, pos_end,
-              radius=5, step_duration=5, duration=200, delta=100, *, task_info=None):
+              radius=5, step_duration=5, duration=200, delta=100,
+              *, task_info=None):
         '''
         swipe with monkey
         '''
@@ -298,152 +299,175 @@ class GFControl(AndroidControl):
                 self.logcat_queue.put(current_log)
             pre_line = current_line
 
-    def run_task(self, task, block_timeout=8, queue_get_time=0.2, stop_event=threading.Event(),
+    def run_task(self, task, fallback_timeout=8, interval=0.1, stop_event=threading.Event(),
                  *, task_info=None):
         '''
         run a serials of task
+
+        interval -- slow down code (default 0.1 second)
         '''
-
-        def exec_cond(cond_index):
-            '''
-            match log with a condition and do target
-            '''
-            nonlocal chain, task_index, task, re_result, stop_event
-            nonlocal timeout_target, next_block_timeout, block_timeout
-
-            # get condition
-            cond = task[cond_index]
-
-            # execute target
-            if cond['target'] == 'pass':
-                target = lambda *args, **kwargs: None
-            else:
-                target = cond['target']
-            # pass in task(chain) info to perform chain, task, condition change
-            target_result = target(
-                task_info={'chain': chain, 'task_index': task_index, 'task': task,
-                           'condition_index': cond_index, 'match_result': re_result}
-            )
-            # change timeout target
-            timeout_target = target_result[0] if target_result and target_result[0] else target
-            if target_result and target_result[1]:
-                next_block_timeout = target_result[1]
-            else:
-                next_block_timeout = block_timeout
-
-            # load next task
-            # case
-            if cond['type'] == 'case':
-                exec_cond(cond_index+1)
-                return
-            # break_case or default
-            if cond['type'] == 'default' or cond['type'] == 'break_case':
-                # stop task
-                if cond['next'] is None:
-                    stop_event.set()
-                    return
-
-                # shorthand of ['absol', int] chain not changed
-                if isinstance(cond['next'], int):
-                    cond['next'] = ['absol', cond['next']]
-                # shorthand of ['relev', 1|-1|0] chain not changed
-                if isinstance(cond['next'], str):
-                    if cond['next'] == 'next':
-                        cond['next'] = ['relev', 1]
-                    elif cond['next'] == 'pre':
-                        cond['next'] = ['relev', -1]
-                    elif cond['next'] == 'self':
-                        cond['next'] = ['relev', 0]
-                    else:
-                        raise ValueError(
-                            '\'next\' value must be \'next\', \'pre\' or \'self\'')
-
-                # task and chain changement
-                if isinstance(cond['next'], list):
-                    # independent task, no chain and task_index
-                    if isinstance(cond['next'][0], dict):
-                        task = cond['next']
-                        chain = None
-                        task_index = None
-                    # chained task, must be in chain
-                    else:
-                        # task index change only
-                        if isinstance(cond['next'][0], str):
-                            if cond['next'][0] == 'relev':
-                                task_index += cond['next'][1]
-                            elif cond['next'][0] == 'absol':
-                                task_index = cond['next'][1]
-                            else:
-                                raise ValueError(
-                                    'in chain change reference must be \'relev\' or \'absol\'')
-                        # chain changement
-                        elif isinstance(cond['next'][0], list):
-                            chain = cond['next'][0]
-                            task_index = cond['next'][1]
-                        else:
-                            raise TypeError('type must be list or str')
-
-                        # set current task
-                        task = chain[task_index]
-                    return
-                raise TypeError('type of \'next\' must be str, int or list')
-            # throw value error
-            raise ValueError(
-                '\'type\'value must be \'case\', \'break_case\' or \'default\'')
-
         # start log thread
         self.start_logcat()
         self.store_log_thread.start()
 
-        # init chain, task
+        # init info
         if isinstance(task[0], list):
             # passed in a task chain
-            chain = task[0]
-            task_index = task[1]
-            task = chain[task_index]
+            info = {'chain': task[0],
+                    'task_index': task[1],
+                    'task': task[0][task[1]]}
+
         elif isinstance(task[0], dict):
             # passed in a task
-            chain = list()
-            task_index = int()
+            info = {'chain': list(),
+                    'task_index': int(),
+                    'task': task}
+        info.update({'condition_index': int(),
+                     'condition': dict(),
+                     'match_result': None,
+                     'block_timeout': fallback_timeout,
+                     'timeout_target': lambda *args, **kwargs: None,
+                     'stop_event': stop_event})
 
-        timeout_target = lambda *args, **kwargs: None
-        re_result = None
-        next_block_timeout = block_timeout
         # run task
         timer = utils.Timer()
-        while not stop_event.is_set():
-            # reset log
+        while not info['stop_event'].is_set():
+            # when task finish or no condition matches
+            # declare that a new log is needed
             log = ''
             # match each condition
-            for (cond_index, cond) in enumerate(task):
-                # default
-                if cond['type'] == 'default':
+            for (info['condition_index'], info['condition']) in enumerate(info['task']):
+                # info['condition_index'] = cond_index
+                # info['condition'] = cond
+                # direct, directly call the target and change task
+                if info['condition']['type'] == 'direct':
                     timer.reset()
-                    exec_cond(cond_index)
+                    self.exec_cond(info, fallback_timeout)
                     break
-                # case or break case
-                try:
-                    # pick a log for this task
-                    if not log:
-                        log = self.logcat_queue.get(
-                            block=True, timeout=queue_get_time)
-                        timer.reset()
-                        self.logcat_queue.task_done()
-                except queue.Empty:
-                    # get failed, do something after timeout
-                    timer.start()
-                    if timer.check() >= next_block_timeout - queue_get_time:
-                        timer.reset()
-                        timeout_target()
-                    break
-                else:
-                    # match log
-                    re_result = re.match(cond['match'], log)
-                    if re_result:
-                        timer.reset()
-                        exec_cond(cond_index)
+                # case or break
+                if (info['condition']['type'] == 'case'
+                        or info['condition']['type'] == 'break'):
+                    try:
+                        # if a new log is needed for the task this routine
+                        if not log:
+                            # use interval to prevent routine goes too fast
+                            log = self.logcat_queue.get(
+                                block=True, timeout=interval)
+                            timer.reset()
+                            self.logcat_queue.task_done()
+                        # if not, continue with the existing log
+                    except queue.Empty:
+                        # use non-block timeout timer to make routine faster
+                        timer.start()
+                        # get failed, call timeout_target after timeout
+                        if timer.check() >= info['block_timeout'] - interval:
+                            timer.reset()
+                            info['timeout_target']()
+                        # retry getting a log
                         break
+                    else:
+                        # match log
+                        info['match_result'] = re.match(
+                            info['condition']['match'], log)
+                        # if match, call the target and change task
+                        if info['match_result']:
+                            timer.reset()
+                            self.exec_cond(info, fallback_timeout)
+                            break
+                        # if not, continue in order to match next condition
+                        continue
+                # unknown value
+                raise ValueError(
+                    '\'type\'value must be \'case\', \'break\' or \'direct\'')
 
         # stop logcat proc and store log thread
         self.stop_logcat()
         self.store_log_thread.join()
+
+    @staticmethod
+    def exec_cond(info, fallback_timeout):
+        '''
+        match log with a condition and do target
+        '''
+        # set condition
+        info['condition'] = info['task'][info['condition_index']]
+
+        # execute target
+        if info['condition']['target'] == 'pass':
+            target = lambda *args, **kwargs: None
+        else:
+            target = info['condition']['target']
+        # pass in task information to target
+        # allowing target to change chain, task, condition
+        target_result = target(task_info={'chain': info['chain'],
+                                          'task_index': info['task_index'],
+                                          'task': info['task'],
+                                          'condition_index': info['condition_index'],
+                                          'condition': info['task'][info['condition_index']],
+                                          'match_result': info['match_result']})
+        # change timeout target for next task
+        if target_result and target_result[0]:
+            info['timeout_target'] = target_result[0]
+        else:
+            info['timeout_target'] = target
+        # set block timeout for next task
+        if target_result and target_result[1]:
+            info['block_timeout'] = target_result[1]
+        else:
+            info['block_timeout'] = fallback_timeout
+
+        # load next task
+        # case
+        if info['condition']['type'] == 'case':
+            info['condition_index'] += 1
+            GFControl.exec_cond(info, fallback_timeout)
+            return
+        # break or direct
+        # stop task
+        if info['condition']['next'] is None:
+            info['stop_event'].set()
+            return
+        # shorthand of ['absol', int] chain not changed
+        if isinstance(info['condition']['next'], int):
+            info['condition']['next'] = ['absol', info['condition']['next']]
+        # shorthand of ['relev', 1|-1|0] chain not changed
+        if isinstance(info['condition']['next'], str):
+            if info['condition']['next'] == 'next':
+                info['condition']['next'] = ['relev', 1]
+            elif info['condition']['next'] == 'pre':
+                info['condition']['next'] = ['relev', -1]
+            elif info['condition']['next'] == 'self':
+                info['condition']['next'] = ['relev', 0]
+            else:
+                raise ValueError(
+                    '\'next\' value must be \'next\', \'pre\' or \'self\'')
+
+        # task and chain changement
+        if isinstance(info['condition']['next'], list):
+            # independent task, no chain and task_index
+            if isinstance(info['condition']['next'][0], dict):
+                info['task'] = info['condition']['next']
+                info['chain'] = None
+                info['task_index'] = None
+            # chained task, must be in chain
+            else:
+                # task index change only
+                if isinstance(info['condition']['next'][0], str):
+                    if info['condition']['next'][0] == 'relev':
+                        info['task_index'] += info['condition']['next'][1]
+                    elif info['condition']['next'][0] == 'absol':
+                        info['task_index'] = info['condition']['next'][1]
+                    else:
+                        raise ValueError(
+                            'in chain change reference must be \'relev\' or \'absol\'')
+                # chain changement
+                elif isinstance(info['condition']['next'][0], list):
+                    info['chain'] = info['condition']['next'][0]
+                    info['task_index'] = info['condition']['next'][1]
+                else:
+                    raise TypeError('type must be list or str')
+
+                # set current task
+                info['task'] = info['chain'][info['task_index']]
+            return
+        raise TypeError('type of \'next\' must be str, int or list')

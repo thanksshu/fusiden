@@ -106,7 +106,7 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
         # 点击拆解
         [
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*预加载结束',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['factory.deassembly.tpi']),
@@ -116,7 +116,7 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
         # 点击选择人形
         [
             {
-                'type': 'default',
+                'type': 'direct',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['factory.deassembly.doll.tpi'], delay=0.5),
                 'next': 'next'
@@ -125,7 +125,7 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
         # 点击智能选择
         [
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*CharacterListLabel',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['warehouse.confirm.tpi']),
@@ -135,7 +135,7 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
         # 点击确定
         [
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*实例化数目0销毁数目0',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['warehouse.confirm.tpi']),
@@ -145,7 +145,7 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
         # 拆解
         [
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*SmallGunItem',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['factory.deassembly.deassembly.tpi']),
@@ -153,7 +153,7 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
             },
             # 再无低星人形
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*实例化数目0销毁数目0',
                 'target': 'pass',
                 'next': None
@@ -162,7 +162,7 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
         # 结束
         [
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*Gun/retireGun',
                 'target': 'pass',
                 'next': next_task
@@ -181,7 +181,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
         # 点击强化
         [
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*预加载结束',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['factory.enhance.tpi']),
@@ -191,7 +191,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
         # 点击选择人形
         [
             {
-                'type': 'default',
+                'type': 'direct',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['factory.enhance.choose_main.tpi']),
                 'next': 'next'
@@ -200,7 +200,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
         # 选择人形
         [
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*UGUIPrefabs/CharacterList/CharacterListLabel',
                 'target': fusiden.pack(tap_doll_in_warehouse, args=(gfcontrol, 0, 0), delay=0.5),
                 'next': 'next'
@@ -211,21 +211,21 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
         [
             # 含有不可编辑人形
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*CharacterDisabled',
                 'target': 'pass',
                 'next': 'self'
             },
             # 不可编辑
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*LiteMessageTips',
                 'target': 'pass',
                 'next': None
             },
             # 点击选择素材
             {
-                'type': 'default',
+                'type': 'direct',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['factory.enhance.choose_sub.tpi']),
                 'next': 'next'
@@ -234,7 +234,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
         # 点击智能选择
         [
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*实例化数目',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['warehouse.confirm.tpi']),
@@ -244,7 +244,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
         # 点击确定
         [
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*实例化数目0销毁数目0',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['warehouse.confirm.tpi']),
@@ -255,7 +255,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
         [
             # 强化
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*SmallGunItem',
                 'target': fusiden.pack(gfcontrol.tap_in,
                                        args=target['factory.enhance.enhance.tpi']),
@@ -263,7 +263,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
             },
             # 再无低星人形
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*实例化数目0销毁数目0',
                 'target': 'pass',
                 'next': None
@@ -272,7 +272,7 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
         # 结束
         [
             {
-                'type': 'break_case',
+                'type': 'break',
                 'match': r'.*eatGun',
                 'target': 'pass',
                 'next': next_task
