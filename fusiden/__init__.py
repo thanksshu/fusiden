@@ -3,7 +3,8 @@ package for controling girlsfrontline
 '''
 
 from .gfcontrol import GFControl
+from .utils import *
 
 __all__ = (
-    'GFControl'
+    'GFControl', 'pack', 'rsleep', 'tprint'
 )

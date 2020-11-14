@@ -5,13 +5,19 @@ import random
 import time
 
 
-def pack(func, *args, **kwargs):
+def pack(func, *, args=None, kwargs=None, delay=0, random_ratio=0.1):
     """
     pack up function with argument
     """
-    def wrapper(*, arg=None):
+    if args is None:
+        args = list()
+    if kwargs is None:
+        kwargs = dict()
+
+    def wrapper(*, task_info=None):
+        rsleep(delay, random_ratio)
         print(f'{func.__name__} {args} {kwargs}')
-        return func(arg=arg, *args, **kwargs)
+        return func(task_info=task_info, *args, **kwargs)
     return wrapper
 
 
@@ -34,19 +40,18 @@ def log_func(func):
     return wrapper
 
 
-def rsleep(sec, ratio=0.2, *, arg=None):
+def rsleep(timeout, random_ratio=0.2, *, task_info=None):
     """
     random sleep time
     """
-    time.sleep(sec + random.uniform(0, sec * ratio))
-    return
+    time.sleep(timeout + random.uniform(0, timeout * random_ratio))
 
 
-def gprint(args='', *, kwargs=dict(), arg=None):
+def tprint(args='', *, print_kwargs=dict(), task_info=None):
     '''
     用于任务的打印
     '''
-    print(args, **kwargs)
+    print(args, **print_kwargs)
 
 
 class Timer():
