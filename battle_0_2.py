@@ -66,7 +66,7 @@ def generate_change_hitman(hitman):
     """
     hitman = hitman if hitman else hitman
 
-    hitman_list = ['416', [0, 5], 'sop', [0, 4]]
+    hitman_list = ['an94', [1, 3], 'g11', [0, 2]]
 
     @fusiden.utils.log_func
     def _change_hitman(*, task_info=None):
@@ -89,7 +89,7 @@ def generate_init_map(first_init=False):
     """
     flag = first_init
 
-    def set_flag(value, *, task_info=None):
+    def _set_init_map_flag(value, *, task_info=None):
         """
         改变是否初始化地图
         """
@@ -97,7 +97,7 @@ def generate_init_map(first_init=False):
         flag = value
 
     @fusiden.utils.log_func
-    def init(*, task_info=None):
+    def _init_map(*, task_info=None):
         nonlocal flag
         if flag is True:
             # 下拉地图
@@ -118,7 +118,7 @@ def generate_init_map(first_init=False):
             gf.swipe([random_x_start, random_y_start],
                      [random_x_end, random_y_end],
                      duration=1200, radius=0, delta=0)
-    return set_flag, init
+    return _set_init_map_flag, _init_map
 
 
 def generate_output():
@@ -128,15 +128,16 @@ def generate_output():
     count = 0
 
     @fusiden.utils.log_func
-    def _o(*, task_info=None):
+    def _output(*, task_info=None):
         """
         输出
         """
         nonlocal count
+        fusiden.rsleep(1)
         count += 1
         os.write(1, b"\x1b[2J\x1b[H")
         print(f'count: {count}')
-    return _o
+    return _output
 
 
 def generate_repair_m16(direct_fix=False):
@@ -159,13 +160,9 @@ def generate_repair_m16(direct_fix=False):
         检测M16性命状态
         """
         nonlocal repair_flag
-        chain = task_info['chain']
-        task_index = task_info['task_index']
-        cond_index = task_info['condition_index']
-        if repair_flag is False:
-            chain[task_index][cond_index]['next'] = ['relev', 4]
-        else:
-            chain[task_index][cond_index]['next'] = 'next'
+
+        task_info['condition']['next'] = 'next' if repair_flag else ['relev', 4]
+
     return _set_repair_flag, _check_m16
 
 
@@ -615,8 +612,8 @@ chain_0_2.extend(
                 'type': 'direct',
                 'target': fusiden.pack(gf.tap_in,
                                        args=target['battle.finish.somewhere.tpi']),
-                'next': None
-                # 'next': [chain_end, 2]
+                # 'next': None
+                'next': [chain_end, 2]
             }
         ]
     ]

@@ -245,15 +245,33 @@ class GFControl(AndroidControl):
                          device_id=device_id)
         self.logcat_queue = queue.Queue()
         self.logcat_proc = None
-        # TODO: use thread pool
         self.store_log_thread = threading.Thread(
-            target=self.store_log,
+            target=self._store_log,
             name='store_log',
             daemon=True)
 
+    def _store_log(self):
+        """
+        store log in queue
+        """
+        # read log
+        pre_line = self.logcat_proc.stdout.readline()
+        while True:
+            try:
+                current_line = self.logcat_proc.stdout.readline()
+            except AttributeError:
+                # logcat subproc killed, end loop
+                break
+            # check if needed
+            if pre_line and b'DebugLogHandler' in current_line:
+                current_log = pre_line.rstrip().decode('utf-8')
+                # put log in queue
+                self.logcat_queue.put(current_log)
+            pre_line = current_line
+
     def start_logcat(self, *, task_info=None):
         '''
-        start logcat then put needed logcat in queue
+        start logcat subproc
         '''
         # stop current running subproc
         self.stop_logcat()
@@ -270,7 +288,6 @@ class GFControl(AndroidControl):
         # start logcat subproc
         self.logcat_proc = self.adb(
             f' logcat -v raw -s Unity -T {shlex.quote(now)} --pid={pid}')
-        # make sure logcat will be killed
 
     def stop_logcat(self, *, task_info=None):
         '''
@@ -280,24 +297,94 @@ class GFControl(AndroidControl):
             utils.kill_subproc(self.logcat_proc)
             self.logcat_proc = None
 
-    def store_log(self, stop_event=threading.Event(), *, task_info=None):
-        """
-        store log in queue
-        """
-        # read log
-        pre_line = self.logcat_proc.stdout.readline()
-        while not stop_event.is_set():
-            try:
-                current_line = self.logcat_proc.stdout.readline()
-            except AttributeError:
-                # logcat subproc killed
-                stop_event.set()
-            # check if needed
-            if pre_line and b'DebugLogHandler' in current_line:
-                current_log = pre_line.rstrip().decode('utf-8')
-                # put log in queue
-                self.logcat_queue.put(current_log)
-            pre_line = current_line
+    @staticmethod
+    def exec_cond(info, fallback_timeout, *, task_info=None):
+        '''
+        execute condition
+        '''
+        # set condition
+        info['condition'] = info['task'][info['condition_index']]
+
+        GFControl._call_target(info, fallback_timeout)
+        # case, execute next condition
+        if info['condition']['type'] == 'case':
+            info['condition_index'] += 1
+            GFControl.exec_cond(info, fallback_timeout)
+        # break or direct, change task
+        else:
+            GFControl._change_task(info)
+
+    @staticmethod
+    def _call_target(info, fallback_timeout):
+        '''
+        call target
+        '''
+        temp_timeout_target = info['timeout_target']
+        temp_block_timeout = info['block_timeout']
+        if info['condition']['target'] == 'pass':
+            target = lambda *args, **kwargs: None
+        else:
+            target = info['condition']['target']
+        # pass in task information to target
+        # allowing target to change info
+        target(task_info=info)
+        # test timeout_target changement
+        if temp_timeout_target == info['timeout_target']:
+            info['timeout_target'] = target
+        # test block_timeout changement
+        if temp_block_timeout == info['block_timeout']:
+            info['block_timeout'] = fallback_timeout
+
+    @staticmethod
+    def _change_task(info):
+        '''
+        change task in info
+        '''
+        # None type, stop task
+        if info['condition']['next'] is None:
+            info['stop_event'].set()
+            return
+
+        # preprocess shorthands
+        # int type, shorthand of ['absol', int]
+        if isinstance(info['condition']['next'], int):
+            info['condition']['next'] = ['absol', info['condition']['next']]
+        # 'next', shorthand of ['relev', 1]
+        if info['condition']['next'] == 'next':
+            info['condition']['next'] = ['relev', 1]
+        # 'pre', shorthand of ['relev', -1]
+        if info['condition']['next'] == 'pre':
+            info['condition']['next'] = ['relev', -1]
+        # 'self', shorthand of ['relev', 0]
+        if info['condition']['next'] == 'self':
+            info['condition']['next'] = ['relev', 0]
+
+        # list type, task and chain changement
+        if isinstance(info['condition']['next'], list):
+            # independent task, no chain and task_index
+            if isinstance(info['condition']['next'][0], dict):
+                info['chain'] = None
+                info['task_index'] = None
+                info['task'] = info['condition']['next']
+                return
+            # chained task, must be in chain
+            # task index change only
+            if info['condition']['next'][0] == 'relev':
+                info['task_index'] += info['condition']['next'][1]
+                info['task'] = info['chain'][info['task_index']]
+                return
+            if info['condition']['next'][0] == 'absol':
+                info['task_index'] = info['condition']['next'][1]
+                info['task'] = info['chain'][info['task_index']]
+                return
+            # chain changement
+            if isinstance(info['condition']['next'][0], list):
+                info['chain'] = info['condition']['next'][0]
+                info['task_index'] = info['condition']['next'][1]
+                info['task'] = info['chain'][info['task_index']]
+                return
+            raise ValueError('\'gf next list\' value error')
+        raise ValueError('\'next\' value error')
 
     def run_task(self, task, fallback_timeout=8, interval=0.1, stop_event=threading.Event(),
                  *, task_info=None):
@@ -316,7 +403,6 @@ class GFControl(AndroidControl):
             info = {'chain': task[0],
                     'task_index': task[1],
                     'task': task[0][task[1]]}
-
         elif isinstance(task[0], dict):
             # passed in a task
             info = {'chain': list(),
@@ -334,140 +420,59 @@ class GFControl(AndroidControl):
         while not info['stop_event'].is_set():
             # when task finish or no condition matches
             # declare that a new log is needed
-            log = ''
+            log = True
             # match each condition
             for (info['condition_index'], info['condition']) in enumerate(info['task']):
-                # info['condition_index'] = cond_index
-                # info['condition'] = cond
-                # direct, directly call the target and change task
+                # directly execute 'direct' condition
                 if info['condition']['type'] == 'direct':
                     timer.reset()
                     self.exec_cond(info, fallback_timeout)
                     break
-                # case or break
+                # no log for this iteration, jump condition type that need log
+                # make sure a log always start the match with the first condition,
+                # or no log will be match
+                if log is False:
+                    continue
+                # 'case' or 'break'
                 if (info['condition']['type'] == 'case'
                         or info['condition']['type'] == 'break'):
                     try:
-                        # if a new log is needed for the task this routine
-                        if not log:
-                            # use interval to prevent routine goes too fast
+                        # if a new log is needed for the task this iteration
+                        if log is True:
+                            # use interval to prevent iteration goes too fast
                             log = self.logcat_queue.get(
                                 block=True, timeout=interval)
+                            # get a log, log is now str type
                             timer.reset()
                             self.logcat_queue.task_done()
                         # if not, continue with the existing log
                     except queue.Empty:
-                        # use non-block timeout timer to make routine faster
+                        # get log failed
+                        # use non-block timeout timer to make iteration faster
                         timer.start()
-                        # get failed, call timeout_target after timeout
+                        # call timeout_target after timeout
                         if timer.check() >= info['block_timeout'] - interval:
                             timer.reset()
                             info['timeout_target']()
-                        # retry getting a log
-                        break
+                            # restart iteration
+                            break
+                        # try next condition, but no log for this iteration
+                        log = False
+                        continue
                     else:
                         # match log
                         info['match_result'] = re.match(
                             info['condition']['match'], log)
-                        # if match, call the target and change task
+                        # if matched, call the target and change task
                         if info['match_result']:
                             timer.reset()
                             self.exec_cond(info, fallback_timeout)
                             break
-                        # if not, continue in order to match next condition
+                        # if not matched, continue in order to match next condition
                         continue
-                # unknown value
+                # unknown type
                 raise ValueError(
                     '\'type\'value must be \'case\', \'break\' or \'direct\'')
 
         # stop logcat proc and store log thread
         self.stop_logcat()
-        self.store_log_thread.join()
-
-    @staticmethod
-    def exec_cond(info, fallback_timeout):
-        '''
-        match log with a condition and do target
-        '''
-        # set condition
-        info['condition'] = info['task'][info['condition_index']]
-
-        # execute target
-        if info['condition']['target'] == 'pass':
-            target = lambda *args, **kwargs: None
-        else:
-            target = info['condition']['target']
-        # pass in task information to target
-        # allowing target to change chain, task, condition
-        target_result = target(task_info={'chain': info['chain'],
-                                          'task_index': info['task_index'],
-                                          'task': info['task'],
-                                          'condition_index': info['condition_index'],
-                                          'condition': info['task'][info['condition_index']],
-                                          'match_result': info['match_result']})
-        # change timeout target for next task
-        if target_result and target_result[0]:
-            info['timeout_target'] = target_result[0]
-        else:
-            info['timeout_target'] = target
-        # set block timeout for next task
-        if target_result and target_result[1]:
-            info['block_timeout'] = target_result[1]
-        else:
-            info['block_timeout'] = fallback_timeout
-
-        # load next task
-        # case
-        if info['condition']['type'] == 'case':
-            info['condition_index'] += 1
-            GFControl.exec_cond(info, fallback_timeout)
-            return
-        # break or direct
-        # stop task
-        if info['condition']['next'] is None:
-            info['stop_event'].set()
-            return
-        # shorthand of ['absol', int] chain not changed
-        if isinstance(info['condition']['next'], int):
-            info['condition']['next'] = ['absol', info['condition']['next']]
-        # shorthand of ['relev', 1|-1|0] chain not changed
-        if isinstance(info['condition']['next'], str):
-            if info['condition']['next'] == 'next':
-                info['condition']['next'] = ['relev', 1]
-            elif info['condition']['next'] == 'pre':
-                info['condition']['next'] = ['relev', -1]
-            elif info['condition']['next'] == 'self':
-                info['condition']['next'] = ['relev', 0]
-            else:
-                raise ValueError(
-                    '\'next\' value must be \'next\', \'pre\' or \'self\'')
-
-        # task and chain changement
-        if isinstance(info['condition']['next'], list):
-            # independent task, no chain and task_index
-            if isinstance(info['condition']['next'][0], dict):
-                info['task'] = info['condition']['next']
-                info['chain'] = None
-                info['task_index'] = None
-            # chained task, must be in chain
-            else:
-                # task index change only
-                if isinstance(info['condition']['next'][0], str):
-                    if info['condition']['next'][0] == 'relev':
-                        info['task_index'] += info['condition']['next'][1]
-                    elif info['condition']['next'][0] == 'absol':
-                        info['task_index'] = info['condition']['next'][1]
-                    else:
-                        raise ValueError(
-                            'in chain change reference must be \'relev\' or \'absol\'')
-                # chain changement
-                elif isinstance(info['condition']['next'][0], list):
-                    info['chain'] = info['condition']['next'][0]
-                    info['task_index'] = info['condition']['next'][1]
-                else:
-                    raise TypeError('type must be list or str')
-
-                # set current task
-                info['task'] = info['chain'][info['task_index']]
-            return
-        raise TypeError('type of \'next\' must be str, int or list')

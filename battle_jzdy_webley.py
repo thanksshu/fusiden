@@ -19,32 +19,52 @@ with open('/home/thanksshu/Documents/Girlsfront/target.json') as fp:
     target = json.load(fp)
 
 
-@fusiden.utils.log_func
-def init_map(*, task_info=None):
+def generate_init_map(first_init=True):
     """
-    令地图满足固定座标
+    生成地图初始化
     """
-    # 下拉地图
-    for _ in range(random.randint(1, 2)):
-        random_x_start = random.randint(300, 1200)
-        random_y_start = random.randint(200, 600)
-        random_x_end = random.randint(300, 1200)
-        random_y_end = random_y_start - 2000
+    flag = first_init
 
-        gf.swipe(random_x_start, random_y_start,
-                 random_x_end, random_y_end)
+    def _set_init_map_flag(value, *, task_info=None):
+        """
+        改变是否初始化地图
+        """
+        nonlocal flag
+        flag = value
 
-    fusiden.rsleep(0.2)
+    @fusiden.utils.log_func
+    def _init_map(*, task_info=None):
+        """
+        令地图满足固定座标
+        """
+        nonlocal flag
+        if flag:
+            # 下拉地图
+            for _ in range(random.randint(1, 2)):
+                random_x_start = random.randint(300, 1200)
+                random_y_start = random.randint(200, 600)
+                random_x_end = random.randint(300, 1200)
+                random_y_end = random_y_start - 2000
 
-    # 上拉地图
-    random_x_start = random.randint(600, 1200)
-    random_x_end = random.randint(600, 1200)
-    random_y_start = random.randint(50, 340)
-    random_y_end = random_y_start + 450
+                gf.swipe((random_x_start, random_y_start),
+                         (random_x_end, random_y_end))
 
-    gf.swipe((random_x_start, random_y_start),
-             (random_x_end, random_y_end),
-             duration=1200, radius=0, delta=50)
+            fusiden.rsleep(0.2)
+
+            # 上拉地图
+            random_x_start = random.randint(600, 1200)
+            random_x_end = random.randint(600, 1200)
+            random_y_start = random.randint(50, 340)
+            random_y_end = random_y_start + 450
+
+            gf.swipe((random_x_start, random_y_start),
+                     (random_x_end, random_y_end),
+                     duration=1200, radius=0, delta=50)
+
+    return _set_init_map_flag, _init_map
+
+
+set_map_flag, init_map = generate_init_map()
 
 
 @fusiden.utils.log_func
@@ -92,7 +112,7 @@ chain_end_factory = [
     [
         {
             'type': 'direct',
-            'target': fusiden.pack(gf.tap_in, args=target['shortcut.activity.tpi']),
+            'target': fusiden.pack(gf.tap_in, args=target['shortcut.activity.tpi'], delay=0.2),
             'next': 'next'
         }
     ],
@@ -115,7 +135,7 @@ chain_main.extend(
             {
                 'type': 'break',
                 'match': r'.*Mission/combinationInfo',
-                'target': fusiden.pack(gf.tap_in, args=((1340, 400), (1440, 460))),
+                'target': fusiden.pack(gf.tap_in, args=((1340, 400), (1440, 460)), delay=0.2),
                 'next': 'next'
             }
         ],
@@ -125,7 +145,9 @@ chain_main.extend(
             {
                 'type': 'break',
                 'match': r'.*MessageboxConstructionConfirmBox',
-                'target': fusiden.pack(gf.tap_in, args=target['combat.setting.enhance.tpi']),
+                'target': fusiden.pack(gf.tap_in,
+                                       args=target['combat.setting.enhance.tpi'],
+                                       delay=0.2),
                 # 'next': [chain_deassembly, 0]
                 'next': [chain_enhance, 0]
             },
@@ -146,6 +168,14 @@ chain_main.extend(
                 'next': 'next'
             }
         ],
+        # 关闭 init_map
+        [
+            {
+                'type': 'direct',
+                'target': fusiden.pack(set_map_flag, args=(False,)),
+                'next': 'next'
+            }
+        ],
         # 噪音
         [
             {
@@ -158,7 +188,7 @@ chain_main.extend(
         [
             {
                 'type': 'direct',
-                'target': tap_hq,
+                'target': fusiden.pack(tap_hq, delay=0.2),
                 'next': 'next'
             }
         ],
@@ -167,7 +197,9 @@ chain_main.extend(
             {
                 'type': 'break',
                 'match': r'.*MessageboxDeploymentTeamInfo',
-                'target': fusiden.pack(gf.tap_in, args=target['battle.team.confirm.tpi']),
+                'target': fusiden.pack(gf.tap_in,
+                                       args=target['battle.team.confirm.tpi'],
+                                       delay=0.2),
                 'next': 'next'
             },
         ],
@@ -176,7 +208,7 @@ chain_main.extend(
             {
                 'type': 'break',
                 'match': r'刷新UI0',
-                'target': fusiden.pack(gf.tap_in, args=target['battle.start.tpi']),
+                'target': fusiden.pack(gf.tap_in, args=target['battle.start.tpi'], delay=0.2),
                 'next': 'next'
             },
         ],
@@ -184,11 +216,11 @@ chain_main.extend(
         [
             {
                 'type': 'direct',
-                'target': fusiden.pack(action.noise, args=(gf,)),
+                'target': fusiden.pack(action.noise, args=(gf,), delay=0.2),
                 'next': 'next'
             }
         ],
-        # 检查被检测 等待补给
+        # 检查被检测 点击HQ
         [
             # 安全
             {
@@ -204,7 +236,43 @@ chain_main.extend(
                 'target': fusiden.pack(fusiden.tprint, args=('\nunsafe\n',)),
                 'next': 'self'
             },
-            # 等待补给
+            # 点击HQ
+            {
+                'type': 'break',
+                'match': r'.*Next',
+                'target': tap_hq,
+                'next': 'next'
+            }
+        ],
+        # 等待
+        [
+            {
+                'type': 'break',
+                'match': r'选择我方',
+                'target': 'pass',
+                'next': 'next'
+            }
+        ],
+        # 再点击HQ
+        [
+            {
+                'type': 'break',
+                'match': r'关闭BUildUI面板',
+                'target': tap_hq,
+                'next': 'next'
+            }
+        ],
+        # 点击补给
+        [
+            {
+                'type': 'break',
+                'match': r'.*MessageboxDeploymentTeamInfo',
+                'target': fusiden.pack(gf.tap_in, args=target['battle.team.supply.tpi'], delay=0.2),
+                'next': 'next'
+            }
+        ],
+        # 等待
+        [
             {
                 'type': 'break',
                 'match': r'请求补给!!',
@@ -260,19 +328,10 @@ chain_main.extend(
                 'target': fusiden.pack(fusiden.tprint, args=('\nunsafe\n')),
                 'next': 'self'
             },
-            # 点击HQ
+            # 点击路径点
             {
                 'type': 'break',
                 'match': r'.*StartPlanfalse',
-                'target': tap_hq,
-                'next': 'next'
-            },
-        ],
-        # 点击路径点
-        [
-            {
-                'type': 'break',
-                'match': r'光标定位',
                 'target': tap_waypoint,
                 'next': 'next'
             },
@@ -295,14 +354,15 @@ chain_main.extend(
                 'next': 'next'
             },
         ],
-        # TODO: Result_New 检测出货
         # 防止意外 等一下
         [
             # 防止意外
             {
                 'type': 'break',
                 'match': r'.*变更计划模式状态pause',
-                'target': fusiden.pack(gf.tap_in, args=target['battle.popup.cancel.tpi']),
+                'target': fusiden.pack(gf.tap_in,
+                                       args=target['battle.popup.cancel.tpi'],
+                                       delay=0.2),
                 'next': 'self'
             },
             # 等一下
@@ -313,36 +373,46 @@ chain_main.extend(
                 'next': 'next'
             }
         ],
-        # TODO: Result_New 检测出货
-        # 防止意外 结束回合
+        # 防止意外 等待
         [
             # 防止意外
             {
                 'type': 'break',
                 'match': r'.*变更计划模式状态pause',
-                'target': fusiden.pack(gf.tap_in, args=target['battle.popup.cancel.tpi']),
+                'target': fusiden.pack(gf.tap_in,
+                                       args=target['battle.popup.cancel.tpi'],
+                                       delay=0.2),
                 'next': 'self'
             },
-            # 结束回合
+            # 等待
             {
                 'type': 'break',
                 'match': r'变更计划模式状态normal',
-                'target': fusiden.pack(gf.tap_in, args=target['battle.start.tpi']),
+                'target': 'pass',
                 'next': 'next'
             },
         ],
-        # 点击立绘
+        # 结束回合
+        [
+            {
+                'type': 'break',
+                'match': r'.*销毁时间',
+                'target': fusiden.pack(gf.tap_in, args=target['battle.start.tpi'], delay=0.2),
+                'next': 'next'
+            }
+        ],
+        # 点击成果结算
         [
             {
                 'type': 'break',
                 'match': r'.*清除missionaction',
                 'target': fusiden.pack(gf.tap_in,
                                        args=target['battle.finish.somewhere.tpi'],
-                                       delay=4),
+                                       delay=4.5),
                 'next': 'next'
             },
         ],
-        # 点击立绘
+        # 点击新枪
         [
             {
                 'type': 'break',
@@ -359,11 +429,12 @@ chain_main.extend(
                 'type': 'break',
                 'match': r'.*MessageboxMessageBox',
                 'target': fusiden.pack(gf.tap_in,
-                                       args=target['battle.finish.rewrad.somewhere.tpi']),
+                                       args=target['battle.finish.rewrad.somewhere.tpi'],
+                                       delay=0.2),
                 'next': 'next'
             },
         ],
-        # 点击立绘
+        # 点击成果计算
         [
             {
                 'type': 'direct',
@@ -400,5 +471,7 @@ if __name__ == "__main__":
 
     print('running...')
     main_stop_event = threading.Event()
+    gf.connect()
     gf.run_task(task_entrance, stop_event=main_stop_event)
+    gf.close()
     sys.exit(0)

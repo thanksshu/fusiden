@@ -188,12 +188,12 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
                 'next': 'next'
             }
         ],
-        # 点击选择人形
+        # 点击“选择人形”
         [
             {
                 'type': 'direct',
                 'target': fusiden.pack(gfcontrol.tap_in,
-                                       args=target['factory.enhance.choose_main.tpi']),
+                                       args=target['factory.enhance.choose_main.tpi'], delay=0.2),
                 'next': 'next'
             }
         ],
@@ -227,7 +227,8 @@ def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
             {
                 'type': 'direct',
                 'target': fusiden.pack(gfcontrol.tap_in,
-                                       args=target['factory.enhance.choose_sub.tpi']),
+                                       args=target['factory.enhance.choose_sub.tpi'],
+                                       delay=0.2),
                 'next': 'next'
             }
         ],
