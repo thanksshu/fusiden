@@ -4,10 +4,14 @@
 import argparse
 import json
 import os
+import signal
+import subprocess
+import sys
+import threading
 from random import SystemRandom
 
-import fusiden
 import action
+import fusiden
 
 parser = argparse.ArgumentParser(description='auto run 0-2')
 parser.add_argument('hitman', type=str, help='hitman in the team now')
@@ -20,44 +24,19 @@ parser.add_argument('-e', action='store_true', default=False,
 args = parser.parse_args()
 
 random = SystemRandom()
-fusiden.GFControl.adbpath = '/home/thanksshu/Android/sdk/platform-tools/adb'
-gf = fusiden.GFControl(device_id='39V4C19114019806')
+
+gf = fusiden.GFControl()
+gf.adb_path = '/home/thanksshu/Android/sdk/platform-tools/adb'
 
 with open('target.json') as fp:
     target = json.load(fp)
 
-
-# target
-@fusiden.utils.log_func
-def tap_airport(*, task_info=None):
-    """
-    点击机场
-    """
-    gf.tap([530, 523])
-
-
-@fusiden.utils.log_func
-def tap_hq(*, task_info=None):
-    """
-    点击指挥部
-    """
-    gf.tap([764, 523])
-
-
-@fusiden.utils.log_func
-def tap_waypoint(*, task_info=None):
-    """
-    点击左上路径点
-    """
-    gf.tap([687, 142])
-
-
-@fusiden.utils.log_func
-def tap_ehq(*, task_info=None):
-    """
-    点击敌指挥部
-    """
-    gf.tap([954, 164])
+target.update(
+    {'airport.tp': [[530, 523]],
+     'hq.tp': [[764, 523]],
+     'wp.tp': [[687, 142]],
+     'ehq.tp': [[954, 164]]}
+)
 
 
 def generate_change_hitman(hitman):
@@ -66,7 +45,7 @@ def generate_change_hitman(hitman):
     """
     hitman = hitman if hitman else hitman
 
-    hitman_list = ['an94', [1, 3], 'g11', [0, 2]]
+    hitman_list = ['ar15', [0, 3], 'sop2', [0, 4]]
 
     @fusiden.utils.log_func
     def _change_hitman(*, task_info=None):
@@ -246,7 +225,8 @@ chain_0_2.extend(
                 'type': 'break',
                 'match': r'.*RevertcanvasMissionInfo',
                 'target': fusiden.pack(gf.tap_in,
-                                       args=target['combat.setting.enhance.tpi'], delay=0.2),
+                                       args=target['combat.setting.enhance.tpi'],
+                                       delay=0.2),
                 'next': [chain_deassembly, 0] if not args.e else [chain_enheance, 0]
             },
             # 初始化地图
@@ -278,7 +258,8 @@ chain_0_2.extend(
         [
             {
                 'type': 'direct',
-                'target': fusiden.pack(tap_hq, delay=0.2),
+                'target': fusiden.pack(gf.tap,
+                                       args=target['hq.tp'], delay=0.2),
                 'next': 'next'
             }
         ],
@@ -368,7 +349,8 @@ chain_0_2.extend(
         [
             {
                 'type': 'direct',
-                'target': fusiden.pack(tap_hq, delay=0.2),
+                'target': fusiden.pack(gf.tap,
+                                       args=target['hq.tp'], delay=0.2),
                 'next': 'next'
             }
         ],
@@ -396,7 +378,8 @@ chain_0_2.extend(
         [
             {
                 'type': 'direct',
-                'target': tap_airport,
+                'target': fusiden.pack(gf.tap,
+                                       args=target['airport.tp']),
                 'next': 'next'
             }
         ],
@@ -425,7 +408,8 @@ chain_0_2.extend(
             {
                 'type': 'break',
                 'match': r'.*Next',
-                'target': tap_airport,
+                'target': fusiden.pack(gf.tap,
+                                       args=target['airport.tp']),
                 'next': 'next'
             }
         ],
@@ -443,7 +427,8 @@ chain_0_2.extend(
             {
                 'type': 'break',
                 'match': r'关闭BUildUI面板',
-                'target': tap_airport,
+                'target': fusiden.pack(gf.tap,
+                                       args=target['airport.tp']),
                 'next': 'next'
             }
         ],
@@ -470,7 +455,8 @@ chain_0_2.extend(
             {
                 'type': 'break',
                 'match': r'.*Next',
-                'target': tap_hq,
+                'target': fusiden.pack(gf.tap,
+                                       args=target['hq.tp']),
                 'next': 'next'
             }
         ],
@@ -488,7 +474,8 @@ chain_0_2.extend(
             {
                 'type': 'break',
                 'match': r'.*LUA: StartPlanfalse',
-                'target': tap_waypoint,
+                'target': fusiden.pack(gf.tap,
+                                       args=target['wp.tp']),
                 'next': 'next'
             }
         ],
@@ -497,7 +484,8 @@ chain_0_2.extend(
             {
                 'type': 'break',
                 'match': r'.*更新快捷点信息16',
-                'target': tap_ehq,
+                'target': fusiden.pack(gf.tap,
+                                       args=target['ehq.tp']),
                 'next': 'next'
             }
         ],
@@ -518,7 +506,7 @@ chain_0_2.extend(
                 'match': r'.*变更计划模式状态pause',
                 'target': fusiden.pack(gf.tap_in,
                                        args=target['battle.popup.cancel.tpi'],
-                                       delay=0.2),
+                                       delay=0.4),
                 'next': 'self'
             },
             {
@@ -543,7 +531,7 @@ chain_0_2.extend(
                 'match': '.*变更计划模式状态pause',
                 'target': fusiden.pack(gf.tap_in,
                                        args=target['battle.popup.cancel.tpi'],
-                                       delay=0.2),
+                                       delay=0.4),
                 'next': 'self'
             },
             {
@@ -559,7 +547,9 @@ chain_0_2.extend(
             {
                 'type': 'break',
                 'match': r'.*变更计划模式状态pause',
-                'target': fusiden.pack(gf.tap_in, args=target['battle.popup.cancel.tpi']),
+                'target': fusiden.pack(gf.tap_in,
+                                       args=target['battle.popup.cancel.tpi'],
+                                       delay=0.4),
                 'next': 'self'
             },
             {
@@ -618,7 +608,6 @@ chain_0_2.extend(
         ]
     ]
 )
-
 chain_entrance.extend(
     [
         # 清屏计数
@@ -632,6 +621,14 @@ chain_entrance.extend(
         [
             {
                 'type': 'direct',
+                'target': gf.clear_log,
+                'next': 'next'
+            }
+        ],
+        # 点击 0-2
+        [
+            {
+                'type': 'direct',
                 'target': fusiden.pack(action.tap_right, args=(gf, 1)),
                 'next': [chain_0_2, 0]
             }
@@ -639,6 +636,30 @@ chain_entrance.extend(
     ]
 )
 
-gf.connect()
-gf.run_task([chain_entrance, 0])
-gf.close()
+if __name__ == "__main__":
+    sigint = signal.getsignal(signal.SIGINT)
+
+    def stop_main(*args):
+        '''
+        stop main
+        '''
+        signal.signal(signal.SIGINT, sigint)
+        main_stop_event.set()
+        print('quitting...')
+
+    signal.signal(signal.SIGINT, stop_main)
+
+    print('running...')
+    main_stop_event = threading.Event()
+    try:
+        gf.connect(device_id='39V4C19114019806')
+        gf.run_task([chain_entrance, 0], stop_event=main_stop_event)
+    except (fusiden.AndroidControlConnectionError,
+            TypeError,
+            ValueError,
+            subprocess.SubprocessError,
+            OSError) as exception:
+        print(exception)
+        stop_main()
+    gf.close()
+    sys.exit(0)

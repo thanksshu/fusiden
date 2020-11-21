@@ -1,7 +1,6 @@
 '''
 android controling classes
 '''
-import atexit
 import queue
 import re
 import shlex
@@ -15,55 +14,102 @@ from . import utils
 random = SystemRandom()
 
 
+class AndroidControlConnectionError(Exception):
+    '''
+    AndroidControl connection error
+    '''
+
+
 class AndroidControl():
     '''
     class for controling GirlsFrontline
+
+    one instance represents a device
     '''
 
-    adbpath = 'adb'
+    def __init__(self):
+        self.adb_path = 'adb'
+        self._device_id = None
+        self._monkey_port = None
+        self._monkey_socket = None
 
-    @classmethod
-    def list_device(cls):
+        self._subproc = list()
+
+    def open_adb(self, command, with_id=True, **kwargs):
+        '''
+        open a adb subprocess
+        '''
+        # connect check
+        if not self._device_id and with_id:
+            raise AndroidControlConnectionError('not connected to any device')
+
+        option_s = f'-s {self._device_id} ' if with_id else ''
+        args = shlex.split(f'{self.adb_path} {option_s}{command}')
+        kwargs.update({'args': args})
+        if 'stdout' not in kwargs:
+            kwargs.update({'stdout': subprocess.DEVNULL})
+        if 'stdin' not in kwargs:
+            kwargs.update({'stdin': subprocess.DEVNULL})
+        if 'stderr' not in kwargs:
+            kwargs.update({'stderr': subprocess.DEVNULL})
+        popen = subprocess.Popen(**kwargs)
+
+        # put in list
+        self._subproc.append(popen)
+
+        return popen
+
+    def adb(self, command, with_id=True, timeout=2, **kwargs):
+        """
+        run a adb command and quit
+        """
+        # connect check
+        if not self._device_id and with_id:
+            raise AndroidControlConnectionError('not connected to any device')
+
+        option_s = f'-s {self._device_id} ' if with_id else ''
+        args = shlex.split(f'{self.adb_path} {option_s}{command}')
+        kwargs.update({'args': args})
+        kwargs.update({'timeout': timeout})
+        if 'capture_output' not in kwargs:
+            kwargs.update({'capture_output': True})
+        if 'check' not in kwargs:
+            check = True
+        else:
+            check = kwargs['check']
+            kwargs.pop('check', None)
+        return subprocess.run(**kwargs, check=check)
+
+    def list_device(self):
         '''
         list attached devices
         '''
-        cmd = f'{cls.adbpath} devices'
-        proc = subprocess.run(shlex.split(cmd),
-                              capture_output=True, check=True)
+        # no connect check needed
+        proc = self.adb('devices', with_id=False)
         result = proc.stdout.splitlines()[1:-1]
         device = list()
         for id_device in result:
             device.append(id_device.decode('utf-8').rsplit())
         return device
 
-    def __init__(self, device_index=0, device_id=None):
+    def connect(self, device_id, monkey_port=5556, timeout=0.2):
         '''
-        specify a device
+        specify a device to comunicate with
         '''
-        if device_id is not None:
-            self.device_id = device_id
-        else:
-            self.device_id = self.list_device()[device_index][0]
+        # not closed
+        if self._device_id is not None:
+            raise AndroidControlConnectionError('not connected to any device')
 
-        self.monkey_port = None
-        self.monkey_socket = None
-
-    def connect(self, monkey_port=5556, timeout=0.2):
-        '''
-        start monkey
-        '''
-        # kill existing monkey
-        self.close()
-        self.monkey_port = monkey_port
+        self._device_id = device_id
+        self._monkey_port = monkey_port
 
         # forward port
-        cmd = (f'{self.adbpath} -s {self.device_id} '
-               f'forward tcp:{self.monkey_port} tcp:{self.monkey_port}')
-        subprocess.run(shlex.split(
-            cmd), capture_output=True, check=True)
+        self.adb(
+            f'forward tcp:{self._monkey_port} tcp:{self._monkey_port}', with_id=False)
 
         # start monkey subproc
-        popen = self.adb(f'shell monkey --port {self.monkey_port}')
+        popen = self.open_adb(
+            f'shell monkey --port {self._monkey_port}', stderr=subprocess.PIPE)
         while True:
             line = popen.stderr.readline()
             if b'data=' in line:
@@ -72,98 +118,87 @@ class AndroidControl():
 
         # start monkey tcp connection
         while True:
-            self.monkey_socket = socket.create_connection(
-                ('localhost', self.monkey_port), timeout)
+            self._monkey_socket = socket.create_connection(
+                ('localhost', self._monkey_port), timeout)
             if self.monkey('sleep 0') != '':
                 break
-            self.monkey_socket.close()
-
-        # make sure all monkey related is stopped
-        atexit.register(self.close)
+            self._monkey_socket.close()
 
     def close(self):
         '''
         stop monkey
         '''
-        if self.monkey_socket is not None:
-            # stop monkey
-            self.monkey('quit')
+        # stop all subproc
+        for subproc in self._subproc:
+            utils.kill_subproc(subproc)
+        self._subproc.clear()
 
-            # close socket
-            self.monkey_socket.close()
-            self.monkey_socket = None
+        # close socket
+        if self._monkey_socket is not None:
+            self._monkey_socket.close()
 
         # kill monkey
-        monkey_pid = self.get_pid('com.android.commands.monkey')
-        if monkey_pid is not None:
-            kill_cmd = (f'{self.adbpath} -s {self.device_id} '
-                        f'shell kill {monkey_pid}')
-            try:
-                subprocess.run(shlex.split(
-                    kill_cmd), capture_output=True, check=True)
-            except subprocess.CalledProcessError:
-                # already killed
-                pass
+        if self._device_id:
+            monkey_pid = self.get_pid('com.android.commands.monkey')
+            if monkey_pid is not None:
+                try:
+                    self.adb(f'shell kill {monkey_pid}')
+                except subprocess.CalledProcessError:
+                    # already killed
+                    pass
+            # remove forward port
+            if self._monkey_port:
+                try:
+                    self.adb(
+                        f'forward --remove tcp:{self._monkey_port}', with_id=False)
+                except subprocess.CalledProcessError:
+                    # no port forward
+                    pass
 
-        # remove forward port
-        cmd = (f'{self.adbpath} -s {self.device_id} '
-               f'forward --remove tcp:{self.monkey_port}')
-        try:
-            subprocess.run(shlex.split(cmd), capture_output=True, check=True)
-        except subprocess.CalledProcessError:
-            # no port forward
-            pass
+        self._device_id = None
+        self._monkey_port = None
+        self._monkey_socket = None
 
     def monkey(self, cmd):
         """
         send cmd to monkey
         """
-        self.monkey_socket.sendall(bytes(cmd, 'utf-8') + b'\n')
-        return self.monkey_socket.recv(32).rstrip().decode('utf-8')
+        self._monkey_socket.sendall(bytes(cmd, 'utf-8') + b'\n')
+        return self._monkey_socket.recv(32).rstrip().decode('utf-8')
 
-    @property
     def is_alive(self):
         '''
         check adb connection, return False when dead
         '''
-        proc = self.adb('shell :')
+        if not self._device_id:
+            raise AndroidControlConnectionError('not connected to any device')
+
+        proc = self.open_adb('shell :')
         proc.communicate()
         if proc.returncode != 0:
             return False
         return True
 
-    def adb(self, command, **kwarg):
-        '''
-        send shell command
-        '''
-        args = shlex.split(
-            f'{self.adbpath} -s {self.device_id} {command}')
-        popen = subprocess.Popen(args,
-                                 stdin=subprocess.PIPE,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE, **kwarg)
-        # make sure logcat is killed
-        atexit.register(utils.kill_subproc, popen)
-        return popen
-
     def get_time(self):
         '''
         get current phone time
         '''
+        if not self._device_id:
+            raise AndroidControlConnectionError('not connected to any device')
+
         sub_cmd = shlex.quote('$(date +\'%Y-%m-%d %H:%M:%S.000\')')
-        cmd = f'{self.adbpath} -s {self.device_id} shell echo {sub_cmd}'
-        result = subprocess.run(shlex.split(cmd),
-                                capture_output=True, check=True)
+        result = self.adb(f'shell echo {sub_cmd}')
         return result.stdout.rstrip().decode('utf-8')
 
     def get_pid(self, package_name):
         '''
         return pid of a application
         '''
-        cmd = f'{self.adbpath} -s {self.device_id} shell pidof -s {package_name}'
+        if not self._device_id:
+            raise AndroidControlConnectionError('not connected to any device')
+
         try:
-            result = subprocess.run(shlex.split(cmd),
-                                    capture_output=True, check=True)
+            result = self.adb(f'shell pidof -s {package_name}')
         except subprocess.CalledProcessError:
             pid = None
         else:
@@ -240,25 +275,24 @@ class GFControl(AndroidControl):
     class for controling girlsfrontline
     '''
 
-    def __init__(self, device_index=0, device_id=None):
-        super().__init__(device_index=device_index,
-                         device_id=device_id)
-        self.logcat_queue = queue.Queue()
-        self.logcat_proc = None
+    def __init__(self):
+        super().__init__()
+        self._logcat_queue = queue.Queue()
+        self._logcat_proc = None
+
         self.store_log_thread = threading.Thread(
             target=self._store_log,
-            name='store_log',
-            daemon=True)
+            name='store_log')
 
     def _store_log(self):
         """
         store log in queue
         """
         # read log
-        pre_line = self.logcat_proc.stdout.readline()
+        pre_line = ''
         while True:
             try:
-                current_line = self.logcat_proc.stdout.readline()
+                current_line = self._logcat_proc.stdout.readline()
             except AttributeError:
                 # logcat subproc killed, end loop
                 break
@@ -266,36 +300,43 @@ class GFControl(AndroidControl):
             if pre_line and b'DebugLogHandler' in current_line:
                 current_log = pre_line.rstrip().decode('utf-8')
                 # put log in queue
-                self.logcat_queue.put(current_log)
+                self._logcat_queue.put(current_log)
             pre_line = current_line
 
-    def start_logcat(self, *, task_info=None):
+    def clear_log(self, *, task_info=None):
         '''
-        start logcat subproc
+        clear log buffer
         '''
-        # stop current running subproc
-        self.stop_logcat()
+        return self.adb('logcat -c')
+
+    def connect(self, device_id, monkey_port=5556, timeout=0.2):
+        '''
+        specify a device to communicate with and start logcat subproc
+        '''
+        super().connect(device_id, monkey_port=monkey_port, timeout=timeout)
         # get time and pid
-        now = self.get_time()
+        time = self.get_time()
         pid = self.get_pid('com.sunborn.girlsfrontline.cn')
         # clear and adjust log buffer
-        cmd = f'{self.adbpath} -s {self.device_id} logcat -c'
-        subprocess.run(shlex.split(cmd),
-                       capture_output=True, check=True)
-        cmd = f'{self.adbpath} -s {self.device_id} logcat -G 16m'
-        subprocess.run(shlex.split(cmd),
-                       capture_output=True, check=True)
+        self.clear_log()
+        self.adb('logcat -G 16m')
         # start logcat subproc
-        self.logcat_proc = self.adb(
-            f' logcat -v raw -s Unity -T {shlex.quote(now)} --pid={pid}')
+        self._logcat_proc = self.open_adb(
+            f' logcat -v raw -s Unity -T {shlex.quote(time)} --pid={pid}',
+            stdout=subprocess.PIPE)
+        # start logcat thread
+        self.store_log_thread.start()
 
-    def stop_logcat(self, *, task_info=None):
+    def close(self):
         '''
-        start logcat then put needed logcat in queue
+        stop communicate with the device
         '''
-        if self.logcat_proc is not None:
-            utils.kill_subproc(self.logcat_proc)
-            self.logcat_proc = None
+
+        if self._logcat_proc is not None:
+            utils.kill_subproc(self._logcat_proc)
+            self._logcat_proc = None
+
+        super().close()
 
     @staticmethod
     def exec_cond(info, fallback_timeout, *, task_info=None):
@@ -383,20 +424,16 @@ class GFControl(AndroidControl):
                 info['task_index'] = info['condition']['next'][1]
                 info['task'] = info['chain'][info['task_index']]
                 return
-            raise ValueError('\'gf next list\' value error')
-        raise ValueError('\'next\' value error')
+        value = info['condition']['next']
+        raise ValueError(f'\'next\' don\'t support {value}')
 
-    def run_task(self, task, fallback_timeout=8, interval=0.1, stop_event=threading.Event(),
-                 *, task_info=None):
+    def run_task(self, task, fallback_timeout=8, interval=0.1,
+                 stop_event=threading.Event(), *, task_info=None):
         '''
         run a serials of task
 
         interval -- slow down code (default 0.1 second)
         '''
-        # start log thread
-        self.start_logcat()
-        self.store_log_thread.start()
-
         # init info
         if isinstance(task[0], list):
             # passed in a task chain
@@ -440,11 +477,11 @@ class GFControl(AndroidControl):
                         # if a new log is needed for the task this iteration
                         if log is True:
                             # use interval to prevent iteration goes too fast
-                            log = self.logcat_queue.get(
+                            log = self._logcat_queue.get(
                                 block=True, timeout=interval)
                             # get a log, log is now str type
                             timer.reset()
-                            self.logcat_queue.task_done()
+                            self._logcat_queue.task_done()
                         # if not, continue with the existing log
                     except queue.Empty:
                         # get log failed
@@ -453,7 +490,12 @@ class GFControl(AndroidControl):
                         # call timeout_target after timeout
                         if timer.check() >= info['block_timeout'] - interval:
                             timer.reset()
-                            info['timeout_target']()
+                            if self.get_pid('com.sunborn.girlsfrontline.cn'):
+                                info['timeout_target']()
+                            # connection lost
+                            else:
+                                raise AndroidControlConnectionError(
+                                    'connection lost') from Exception()
                             # restart iteration
                             break
                         # try next condition, but no log for this iteration
@@ -473,6 +515,3 @@ class GFControl(AndroidControl):
                 # unknown type
                 raise ValueError(
                     '\'type\'value must be \'case\', \'break\' or \'direct\'')
-
-        # stop logcat proc and store log thread
-        self.stop_logcat()

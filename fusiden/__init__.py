@@ -2,9 +2,10 @@
 package for controling girlsfrontline
 '''
 
-from .gfcontrol import GFControl
+from .gfcontrol import *
 from .utils import *
 
 __all__ = (
-    'GFControl', 'pack', 'rsleep', 'tprint'
+    'GFControl', 'AndroidControlError', 'AndroidControlConnectionError',
+    'pack', 'rsleep', 'tprint'
 )

@@ -5,37 +5,43 @@ import atexit
 import shlex
 import subprocess
 
-import fusiden
-
-fusiden.GFControl.adbpath = "/home/thanksshu/Android/sdk/platform-tools/adb"
-gf = fusiden.GFControl(device_id="39V4C19114019806")
+ID = '39V4C19114019806'
+ADB = '/home/thanksshu/Android/sdk/platform-tools/adb'
 
 
-def kill_subproc(subproc):
+def kill_subproc(popen):
     """
-    terminate a subproc
+    kill a subproc
     """
-    while subproc.poll() is None:
-        subproc.kill()
-        subproc.wait()
-    return
+    while popen.poll() is None:
+        popen.kill()
+        popen.wait()
 
 
 # get time and pid
-now = gf.get_time()
-pid = gf.get_pid('com.sunborn.girlsfrontline.cn')
-# adjust log buffer
-cmd = f'{gf.adbpath} -s {gf.device_id} logcat -G 2m'
-_ = subprocess.run(shlex.split(
-    cmd), capture_output=True, check=True)
-# start log subproc
-cmd = (f'{gf.adbpath} -s {gf.device_id}'
-       f' logcat -v raw -s Unity -T {shlex.quote(now)} --pid={pid}')
-logcat_proc = subprocess.Popen(shlex.split(cmd),
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
-                               stdin=subprocess.PIPE)
+DATE = shlex.quote('$(date +\'%Y-%m-%d %H:%M:%S.000\')')
+args = shlex.split(f'{ADB} -s {ID} shell echo {DATE}')
+time = subprocess.run(args, capture_output=True,
+                      check=True).stdout.rstrip().decode('utf-8')
+
+args = shlex.split(
+    f'{ADB} -s {ID} shell pidof -s com.sunborn.girlsfrontline.cn')
+pid = subprocess.run(args, capture_output=True,
+                     check=True).stdout.rstrip().decode('utf-8')
+
+
+# clear and adjust log buffer
+subprocess.run(shlex.split(f'{ADB} -s {ID} logcat -c'), capture_output=True,
+               check=True)
+subprocess.run(shlex.split(f'{ADB} -s {ID} logcat -G 16m'), capture_output=True,
+               check=True)
+# start logcat subproc
+args = shlex.split(
+    f'{ADB} -s {ID} logcat -v raw -s Unity -T {shlex.quote(time)} --pid={pid}')
+logcat_proc = subprocess.Popen(args, stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
 atexit.register(kill_subproc, logcat_proc)
+
 # read log
 pre_line = logcat_proc.stdout.readline()
 while True:
@@ -46,5 +52,3 @@ while True:
         # put log in queue
         print(current_log)
     pre_line = current_line
-# terminate subproc
-logcat_proc.kill()
