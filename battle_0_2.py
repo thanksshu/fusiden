@@ -45,7 +45,18 @@ def generate_change_hitman(hitman):
     """
     hitman = hitman if hitman else hitman
 
-    hitman_list = ['ar15', [0, 3], 'sop2', [0, 4]]
+    hitman_list = ['hk416', [0, 5], 'an94', [1, 4]]
+
+    @fusiden.utils.log_func
+    def _set_hitman(*, task_info=None):
+        """
+        更换打手
+        """
+        nonlocal hitman, hitman_list
+        if hitman == hitman_list[0]:
+            hitman = hitman_list[2]
+        elif hitman == hitman_list[2]:
+            hitman = hitman_list[0]
 
     @fusiden.utils.log_func
     def _change_hitman(*, task_info=None):
@@ -55,11 +66,10 @@ def generate_change_hitman(hitman):
         nonlocal hitman, hitman_list
         if hitman == hitman_list[0]:
             action.tap_doll_in_warehouse(gf, *hitman_list[3])
-            hitman = hitman_list[2]
         elif hitman == hitman_list[2]:
             action.tap_doll_in_warehouse(gf, *hitman_list[1])
-            hitman = hitman_list[0]
-    return _change_hitman
+
+    return _change_hitman, _set_hitman
 
 
 def generate_init_map(first_init=False):
@@ -147,7 +157,7 @@ def generate_repair_m16(direct_fix=False):
 
 output = generate_output()
 set_repair_flag, check_m16 = generate_repair_m16(args.f)
-change_hitman = generate_change_hitman(args.hitman)
+change_hitman, set_hitman = generate_change_hitman(args.hitman)
 set_init_flag, init_map = generate_init_map(args.i)
 
 # tasks
@@ -323,15 +333,23 @@ chain_0_2.extend(
             {
                 'type': 'break',
                 'match': r'.*CharacterDisabled',
-                'target': change_hitman,
+                'target': fusiden.pack(change_hitman, delay=0.2),
+                'next': 'next'
+            }
+        ],
+        # 改变打手标记
+        [
+            {
+                'type': 'break',
+                'match': r'.*RequestChangeTeam success',
+                'target': set_hitman,
                 'next': 'next'
             }
         ],
         # 点击返回
         [
             {
-                'type': 'break',
-                'match': r'.*RequestChangeTeam success',
+                'type': 'direct',
                 'target': fusiden.pack(gf.tap, args=target['global.back.tp']),
                 'next': 'next'
             }
@@ -340,7 +358,7 @@ chain_0_2.extend(
         [
             {
                 'type': 'break',
-                'match': r'变更计划模式状态normal',
+                'match': r'.*预加载物体TeamSelectionCharacterLabel',
                 'target': fusiden.pack(init_map, delay=0.2),
                 'next': 'next'
             }
@@ -653,7 +671,8 @@ if __name__ == "__main__":
     main_stop_event = threading.Event()
     try:
         gf.connect(device_id='39V4C19114019806')
-        gf.run_task([chain_entrance, 0], stop_event=main_stop_event)
+        gf.run_task([chain_entrance, 0],
+                    stop_event=main_stop_event, fallback_timeout=15)
     except (fusiden.AndroidControlConnectionError,
             TypeError,
             ValueError,

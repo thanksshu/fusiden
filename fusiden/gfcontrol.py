@@ -514,4 +514,4 @@ class GFControl(AndroidControl):
                         continue
                 # unknown type
                 raise ValueError(
-                    '\'type\'value must be \'case\', \'break\' or \'direct\'')
+                    '\'type\' value must be \'case\', \'break\' or \'direct\'')
