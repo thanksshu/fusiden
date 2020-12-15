@@ -98,7 +98,7 @@ class AndroidControl():
         '''
         # not closed
         if self._device_id is not None:
-            raise AndroidControlConnectionError('not connected to any device')
+            raise AndroidControlConnectionError('already connected to a device')
 
         self._device_id = device_id
         self._monkey_port = monkey_port

@@ -45,7 +45,7 @@ def generate_change_hitman(hitman):
     """
     hitman = hitman if hitman else hitman
 
-    hitman_list = ['hk416', [0, 5], 'an94', [1, 4]]
+    hitman_list = ['g11', [0, 4], 'an94', [1, 0]]
 
     @fusiden.utils.log_func
     def _set_hitman(*, task_info=None):
@@ -328,12 +328,30 @@ chain_0_2.extend(
                 'next': 'next'
             }
         ],
-        # 点击所需人形
+        # 点击排序方式
         [
             {
                 'type': 'break',
                 'match': r'.*CharacterDisabled',
-                'target': fusiden.pack(change_hitman, delay=0.2),
+                'target': fusiden.pack(gf.tap_in, args=target['warehouse.sort.tpi'], delay=0.2),
+                'next': 'next'
+            }
+        ],
+        [
+            {
+                'type': 'direct',
+                'target': fusiden.pack(gf.tap_in,
+                                       args=target['warehouse.sort.favor.tpi'],
+                                       delay=0.2),
+                'next': 'next'
+            }
+        ],
+        # 点击所需人形
+        [
+            {
+                'type': 'break',
+                'match': r'.*实例化数目',
+                'target': fusiden.pack(change_hitman, delay=1),
                 'next': 'next'
             }
         ],
