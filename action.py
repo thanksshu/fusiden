@@ -22,7 +22,7 @@ def noise(gfcontrol: fusiden.GFControl, min_times=0, max_times=3, *, task_info=N
         for _ in range(0, times):
             gfcontrol.tap_in([70, 200], [300, 450])
         for _ in range(0, random.randint(0, max_times - times)):
-            gfcontrol.tap_in([1250, 150], [1460, 550])
+            gfcontrol.tap_in([1250, 150], [1300, 550])
 
 
 # combat factory research

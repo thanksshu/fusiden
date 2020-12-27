@@ -45,7 +45,7 @@ def generate_change_hitman(hitman):
     """
     hitman = hitman if hitman else hitman
 
-    hitman_list = ['g11', [0, 4], 'an94', [1, 0]]
+    hitman_list = ['g11', [0, 4], 'an94', [0, 5]]
 
     @fusiden.utils.log_func
     def _set_hitman(*, task_info=None):
@@ -57,6 +57,7 @@ def generate_change_hitman(hitman):
             hitman = hitman_list[2]
         elif hitman == hitman_list[2]:
             hitman = hitman_list[0]
+        print(hitman)
 
     @fusiden.utils.log_func
     def _change_hitman(*, task_info=None):

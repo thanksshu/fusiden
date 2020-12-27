@@ -39,6 +39,16 @@
             590
         ]
     ],
+    "battle.team.retreat.tpi": [
+        [
+            1060,
+            610
+        ],
+        [
+            1150,
+            660
+        ]
+    ],
     "battle.plan_mode.tpi": [
         [
             100,
@@ -59,6 +69,36 @@
             700
         ]
     ],
+    "battle.terminate.tpi": [
+        [
+            300,
+            10
+        ],
+        [
+            370,
+            80
+        ]
+    ],
+    "battle.terminate.retry.tpi": [
+        [
+            570,
+            470
+        ],
+        [
+            680,
+            510
+        ]
+    ],
+    "battle.terminate.terminate.tpi": [
+        [
+            880,
+            470
+        ],
+        [
+            970,
+            510
+        ]
+    ],
     "battle.popup.cancel.tpi": [
         [
             610,
@@ -66,6 +106,16 @@
         ],
         [
             710,
+            520
+        ]
+    ],
+    "battle.popup.confirm.tpi": [
+        [
+            850,
+            470
+        ],
+        [
+            930,
             520
         ]
     ],
