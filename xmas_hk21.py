@@ -94,9 +94,19 @@ chain_end_factory.extend(
                 'match': r'.*ItemId100073-60/60',
                 'target': fusiden.pack(gf.tap_in,
                                        args=target['entrance.tpi']),
+                'next': 'next'
+            }
+        ],
+        # 普通作战
+        [
+            {
+                'type': 'break',
+                'match': r'.*Function：Mission/combinationInfo',
+                'target': fusiden.pack(gf.tap_in,
+                                       args=target['combat.setting.normal.tpi'], delay=0.2),
                 'next': [chain_main, 0]
             }
-        ]
+        ],
     ]
 )
 chain_entrance.extend(
@@ -245,7 +255,7 @@ chain_main.extend(
                 'type': 'break',
                 'match': r'获胜队伍',
                 'target': fusiden.pack(gf.tap_in,
-                                       args=target['battle.finish.somewhere.tpi'], delay=4),
+                                       args=target['battle.finish.somewhere.tpi'], delay=3),
                 'next': 'next'
             }
         ],
@@ -254,7 +264,7 @@ chain_main.extend(
                 'type': 'break',
                 'match': r'加载Resource预制物GetNewGun',
                 'target': fusiden.pack(gf.tap_in,
-                                       args=target['battle.finish.somewhere.tpi'], delay=4),
+                                       args=target['battle.finish.somewhere.tpi'], delay=3),
                 'next': 'next'
             }
         ],
@@ -263,7 +273,8 @@ chain_main.extend(
                 'type': 'break',
                 'match': r'.*设置canvas至MessageboxMessageBox',
                 'target': fusiden.pack(gf.tap_in,
-                                       args=target['battle.finish.reward.somewhere.tpi']),
+                                       args=target['battle.finish.reward.somewhere.tpi'],
+                                       delay=0.2),
                 'next': 'next'
             }
         ],
@@ -271,7 +282,7 @@ chain_main.extend(
             {
                 'type': 'direct',
                 'target': fusiden.pack(gf.tap_in,
-                                       args=target['battle.finish.somewhere.tpi']),
+                                       args=target['battle.finish.somewhere.tpi'], delay=1),
                 'next': 'next'
             }
         ],

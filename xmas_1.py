@@ -94,7 +94,7 @@ chain_end_factory.extend(
         [
             {
                 'type': 'break',
-                'match': r'.*ItemId100073-60/60',
+                'match': r'.*ItemId',
                 'target': fusiden.pack(gf.tap_in,
                                        args=target['entrance.tpi']),
                 'next': [chain_main, 0]
