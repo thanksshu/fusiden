@@ -45,7 +45,7 @@ def generate_change_hitman(hitman):
     """
     hitman = hitman if hitman else hitman
 
-    hitman_list = ['g11', [0, 2], 'an94', [0, 5]]
+    hitman_list = ['ar15', [0, 3], 'sop', [0, 2]]
 
     @fusiden.utils.log_func
     def _set_hitman(*, task_info=None):
@@ -240,10 +240,24 @@ chain_0_2.extend(
                                        delay=0.2),
                 'next': [chain_deassembly, 0] if not args.e else [chain_enheance, 0]
             },
-            # 初始化地图
+            # 准备初始化地图
             {
                 'type': 'break',
-                'match': r'.*载入场景耗时',
+                'match': r'预加载物体DeploymentExplain',
+                'target': 'pass',
+                'next': 'next'
+            }
+        ],
+        # 等一下
+        [
+            {
+                'type': 'case',
+                'match': r'.*销毁时间',
+                'target': 'pass',
+            },
+            {
+                'type': 'break',
+                'match': r'.*Decode',
                 'target': 'pass',
                 'next': 'next'
             }
@@ -251,8 +265,13 @@ chain_0_2.extend(
         # 初始化地图
         [
             {
+                'type': 'case',
+                'match': r'.*销毁时间',
+                'target': 'pass',
+            },
+            {
                 'type': 'break',
-                'match': r'.*销毁',
+                'match': r'.*Decode',
                 'target': init_map,
                 'next': 'next'
             }
@@ -329,30 +348,30 @@ chain_0_2.extend(
                 'next': 'next'
             }
         ],
-        # 点击排序方式
-        [
-            {
-                'type': 'break',
-                'match': r'.*CharacterDisabled',
-                'target': fusiden.pack(gf.tap_in, args=target['warehouse.sort.tpi'], delay=0.2),
-                'next': 'next'
-            }
-        ],
-        [
-            {
-                'type': 'direct',
-                'target': fusiden.pack(gf.tap_in,
-                                       args=target['warehouse.sort.favor.tpi'],
-                                       delay=0.2),
-                'next': 'next'
-            }
-        ],
+        # # 点击排序方式
+        # [
+        #     {
+        #         'type': 'break',
+        #         'match': r'.*CharacterDisabled',
+        #         'target': fusiden.pack(gf.tap_in, args=target['warehouse.sort.tpi'], delay=0.2),
+        #         'next': 'next'
+        #     }
+        # ],
+        # [
+        #     {
+        #         'type': 'direct',
+        #         'target': fusiden.pack(gf.tap_in,
+        #                                args=target['warehouse.sort.favor.tpi'],
+        #                                delay=0.2),
+        #         'next': 'next'
+        #     }
+        # ],
         # 点击所需人形
         [
             {
                 'type': 'break',
                 'match': r'.*实例化数目',
-                'target': fusiden.pack(change_hitman, delay=1),
+                'target': fusiden.pack(change_hitman, delay=0.2),
                 'next': 'next'
             }
         ],
@@ -377,7 +396,7 @@ chain_0_2.extend(
         [
             {
                 'type': 'break',
-                'match': r'.*预加载物体TeamSelectionCharacterLabel',
+                'match': r'.*DeploymentCircle',
                 'target': fusiden.pack(init_map, delay=0.2),
                 'next': 'next'
             }
