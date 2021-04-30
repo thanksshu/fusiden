@@ -249,6 +249,42 @@
             660
         ]
     ],
+    "formation.tile.tpi": [
+        [
+            1212,
+            661
+        ],
+        [
+            1389,
+            706
+        ]
+    ],
+    "formation.tile.preset.tp": [
+        [
+            1189,
+            302
+        ]
+    ],
+    "formation.tile.preset.use.tpi": [
+        [
+            1142,
+            592
+        ],
+        [
+            1338,
+            665
+        ]
+    ],
+    "formation.tile.confirm.tpi": [
+        [
+            1210,
+            590
+        ],
+        [
+            1338,
+            665
+        ]
+    ],
     "global.back.tp": [
         [
             240,

@@ -8,6 +8,8 @@ import time
 def pack(func, *, args=None, kwargs=None, delay=0, random_ratio=0.1):
     """
     pack up function with argument
+    
+    delay -- delay before action
     """
     if args is None:
         args = list()

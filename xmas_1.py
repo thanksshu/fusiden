@@ -71,7 +71,7 @@ target.update(
 chain_main = list()
 chain_entrance = list()
 chain_end_factory = list()
-chain_deassembly = action.generate_chain_deassembly(gf, [chain_end_factory, 0])
+chain_deassembly = action.generate_chain_doll_deassembly(gf, [chain_end_factory, 0])
 chain_end_factory.extend(
     [
         # 打开快捷菜单

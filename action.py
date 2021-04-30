@@ -98,7 +98,7 @@ def tap_doll_in_warehouse(gfcontrol, line, row, *, task_info=None):
 
 
 # 生成拆解任务
-def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
+def generate_chain_doll_deassembly(gfcontrol: fusiden.GFControl, next_task):
     '''
     return task deassembly
     '''
@@ -173,7 +173,116 @@ def generate_chain_deassembly(gfcontrol: fusiden.GFControl, next_task):
 
 
 # 生成强化任务
-def generate_chain_enhance(gfcontrol: fusiden.GFControl, next_task):
+def generate_chain_doll_enhance(gfcontrol: fusiden.GFControl, next_task):
+    '''
+    return task enhance
+    '''
+    task = [
+        # 点击强化
+        [
+            {
+                'type': 'break',
+                'match': r'.*预加载结束',
+                'target': fusiden.pack(gfcontrol.tap_in,
+                                       args=target['factory.enhance.tpi']),
+                'next': 'next'
+            }
+        ],
+        # 点击“选择人形”
+        [
+            {
+                'type': 'direct',
+                'target': fusiden.pack(gfcontrol.tap_in,
+                                       args=target['factory.enhance.choose_main.tpi'], delay=0.2),
+                'next': 'next'
+            }
+        ],
+        # 选择人形
+        [
+            {
+                'type': 'break',
+                'match': r'.*UGUIPrefabs/CharacterList/CharacterListLabel',
+                'target': fusiden.pack(tap_doll_in_warehouse, args=(gfcontrol, 0, 0), delay=0.5),
+                'next': 'next'
+            },
+        ],
+        # 不可编辑 点击选择素材
+        # TODO: 结束失败
+        [
+            # 含有不可编辑人形
+            {
+                'type': 'break',
+                'match': r'.*CharacterDisabled',
+                'target': 'pass',
+                'next': 'self'
+            },
+            # 不可编辑
+            {
+                'type': 'break',
+                'match': r'.*LiteMessageTips',
+                'target': 'pass',
+                'next': None
+            },
+            # 点击选择素材
+            {
+                'type': 'direct',
+                'target': fusiden.pack(gfcontrol.tap_in,
+                                       args=target['factory.enhance.choose_sub.tpi'],
+                                       delay=0.2),
+                'next': 'next'
+            }
+        ],
+        # 点击智能选择
+        [
+            {
+                'type': 'break',
+                'match': r'.*实例化数目',
+                'target': fusiden.pack(gfcontrol.tap_in,
+                                       args=target['warehouse.confirm.tpi']),
+                'next': 'next'
+            }
+        ],
+        # 点击确定
+        [
+            {
+                'type': 'break',
+                'match': r'.*实例化数目0销毁数目0',
+                'target': fusiden.pack(gfcontrol.tap_in,
+                                       args=target['warehouse.confirm.tpi']),
+                'next': 'next'
+            }
+        ],
+        # 强化 再无低星人形
+        [
+            # 强化
+            {
+                'type': 'break',
+                'match': r'.*SmallGunItem',
+                'target': fusiden.pack(gfcontrol.tap_in,
+                                       args=target['factory.enhance.enhance.tpi']),
+                'next': 'next'
+            },
+            # 再无低星人形
+            {
+                'type': 'break',
+                'match': r'.*实例化数目0销毁数目0',
+                'target': 'pass',
+                'next': None
+            },
+        ],
+        # 结束
+        [
+            {
+                'type': 'break',
+                'match': r'.*eatGun',
+                'target': 'pass',
+                'next': next_task
+            }
+        ],
+    ]
+    return task
+
+def generate_chain_weapon_enhance(gfcontrol: fusiden.GFControl, next_task):
     '''
     return task enhance
     '''
