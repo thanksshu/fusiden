@@ -34,8 +34,8 @@ with open('target.json') as fp:
 
 target.update(
     {'hq.tp': [[996, 632]],
-     'airport.tp': [[1008, 182]],
-     'ehq.tp': [[534, 206]]}
+     'airport.tp': [[1020, 192]],
+     'ehq.tp': [[504, 201]]}
 )
 
 
@@ -168,14 +168,22 @@ chain_4_6.extend(
                                        delay=0.2),
                 'next': [chain_deassembly, 0] if not args.e else [chain_enheance, 0]
             },
-            # 准备初始化地图
+            # 正在进入4-6
             {
                 'type': 'break',
-                'match': r'预加载物体DeploymentExplain',
+                'match': r'创建敌人数据SpotID604',
+                'target': 'pass',
+                'next': ['relev', 2]
+            },
+            # 正在进入4-4
+            {
+                'type': 'break',
+                'match': r'创建敌人数据SpotID558',
                 'target': 'pass',
                 'next': 'next'
-            }
+            },
         ],
+
         # # 等一下
         # [
         #     {
@@ -185,6 +193,18 @@ chain_4_6.extend(
         #         'next': 'next'
         #     }
         # ],
+
+        # 进错地图，返回
+        [
+            {
+                'type': 'break',
+                'match': r'.*销毁时间',
+                'target': fusiden.pack(gf.tap,
+                                       args=([[60, 40]])),
+                'next': [chain_end, 2]
+            }
+        ],
+
         # 初始化地图
         [
             {

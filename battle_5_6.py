@@ -33,7 +33,7 @@ with open('target.json') as fp:
     target = json.load(fp)
 
 target.update(
-    {'hq.tp': [[950, 651]],
+    {'hq.tp': [[982, 652]],
      'airport.tp': [[1008, 182]],
      'ehq.tp': [[534, 206]]}
 )
@@ -207,7 +207,7 @@ chain_5_6.extend(
             {
                 'type': 'direct',
                 'target': fusiden.pack(gf.tap,
-                                       args=target['airport.tp'], delay=0.2),
+                                       args=target['airport.tp'], delay=0.4),
                 'next': 'next'
             }
         ],
