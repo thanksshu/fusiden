@@ -98,7 +98,8 @@ class AndroidControl():
         '''
         # not closed
         if self._device_id is not None:
-            raise AndroidControlConnectionError('already connected to a device')
+            raise AndroidControlConnectionError(
+                'already connected to a device')
 
         self._device_id = device_id
         self._monkey_port = monkey_port
@@ -269,6 +270,15 @@ class AndroidControl():
         self.tap(pos, radius=0,
                  duration=duration, delta=delta)
 
+    def touch(self, cord, radius=5, duration=80, delta=15, *, task_info=None):
+        '''
+        auto decide tap_in and tap according to cord's form
+        '''
+        if len(cord) == 1:
+            self.tap(*cord, radius, duration, delta)
+        elif len(cord) == 2:
+            self.tap_in(*cord, duration, delta)
+
 
 class GFControl(AndroidControl):
     '''
@@ -390,15 +400,12 @@ class GFControl(AndroidControl):
         # int type, shorthand of ['absol', int]
         if isinstance(info['condition']['next'], int):
             info['condition']['next'] = ['absol', info['condition']['next']]
-        # 'next', shorthand of ['relev', 1]
-        if info['condition']['next'] == 'next':
-            info['condition']['next'] = ['relev', 1]
-        # 'pre', shorthand of ['relev', -1]
-        if info['condition']['next'] == 'pre':
-            info['condition']['next'] = ['relev', -1]
-        # 'self', shorthand of ['relev', 0]
-        if info['condition']['next'] == 'self':
-            info['condition']['next'] = ['relev', 0]
+        # str type, shorthand of ['relev', 1 | -1 | 0]
+        if isinstance(info['condition']['next'], str):
+            relev = {'next': ['relev', 1],
+                     'pre': ['relev', -1],
+                     'self': ['relev', 0]}
+            info['condition']['next'] = relev[info['condition']['next']]
 
         # list type, task and chain changement
         if isinstance(info['condition']['next'], list):
