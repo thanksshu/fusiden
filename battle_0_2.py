@@ -1,5 +1,6 @@
 '''
 0-2 自动拖尸 维修 处理多余低星人形
+16鸽在队尾 打手倒2
 '''
 import argparse
 import json
@@ -14,13 +15,12 @@ import action
 import fusiden
 
 parser = argparse.ArgumentParser(description='auto run 0-2')
-parser.add_argument('hitman', type=str, help='hitman in the team now')
 parser.add_argument('-f', action='store_true', default=False,
                     help='directly fix m16')
 parser.add_argument('-i', action='store_true', default=False,
                     help='init map')
 parser.add_argument('-e', action='store_true', default=False,
-                    help='enhance when full')
+                    help='enhance when full default destroy')
 args = parser.parse_args()
 
 random = SystemRandom()
@@ -31,6 +31,19 @@ gf.adb_path = '/home/thanksshu/Android/sdk/platform-tools/adb'
 with open('target.json') as fp:
     target = json.load(fp)
 
+hitman_dict = {
+    'm4 sopmod iimod': (0, 5),
+    'ar15mod': (0, 5)
+}
+
+namespace = argparse.Namespace(
+    hitman=list(hitman_dict)[0],
+    count=0,
+    map_flag=args.i,
+    repair_flag=args.f
+)
+
+
 target.update(
     {'airport.tp': [[530, 523]],
      'hq.tp': [[764, 523]],
@@ -39,127 +52,48 @@ target.update(
 )
 
 
-def generate_change_hitman(hitman):
-    """
-    生成更换打手函数
-    """
-    hitman = hitman if hitman else hitman
+@fusiden.utils.log_func
+def init_map(*, task_info=None):
+    if namespace.map_flag is True:
+        # 下拉地图
+        for _ in range(random.randint(1, 2)):
+            random_x_start = random.randint(300, 1200)
+            random_y_start = random.randint(200, 600)
+            random_x_end = random.randint(300, 1200)
+            random_y_end = random_y_start - 4000
 
-    hitman_list = ['ar15', [0, 3], 'sop2', [0, 2]]
-
-    @fusiden.utils.log_func
-    def _set_hitman(*, task_info=None):
-        """
-        更换打手
-        """
-        nonlocal hitman, hitman_list
-        if hitman == hitman_list[0]:
-            hitman = hitman_list[2]
-        elif hitman == hitman_list[2]:
-            hitman = hitman_list[0]
-        print(hitman)
-
-    @fusiden.utils.log_func
-    def _change_hitman(*, task_info=None):
-        """
-        更换打手
-        """
-        nonlocal hitman, hitman_list
-        if hitman == hitman_list[0]:
-            action.tap_doll_in_warehouse(gf, *hitman_list[3])
-        elif hitman == hitman_list[2]:
-            action.tap_doll_in_warehouse(gf, *hitman_list[1])
-
-    return _change_hitman, _set_hitman
-
-
-def generate_init_map(first_init=False):
-    """
-    生成地图初始化
-    """
-    flag = first_init
-
-    def _set_init_map_flag(value, *, task_info=None):
-        """
-        改变是否初始化地图
-        """
-        nonlocal flag
-        flag = value
-
-    @fusiden.utils.log_func
-    def _init_map(*, task_info=None):
-        nonlocal flag
-        if flag is True:
-            # 下拉地图
-            for _ in range(random.randint(1, 2)):
-                random_x_start = random.randint(300, 1200)
-                random_y_start = random.randint(200, 600)
-                random_x_end = random.randint(300, 1200)
-                random_y_end = random_y_start - 4000
-
-                gf.swipe([random_x_start, random_y_start],
-                         [random_x_end, random_y_end])
-            fusiden.rsleep(0.2)
-            # 上拉地图
-            random_x_start = random.randint(600, 1200)
-            random_x_end = random.randint(600, 1200)
-            random_y_start = random.randint(50, 340)
-            random_y_end = random_y_start + 500
             gf.swipe([random_x_start, random_y_start],
-                     [random_x_end, random_y_end],
-                     duration=1200, radius=0, delta=0)
-    return _set_init_map_flag, _init_map
+                     [random_x_end, random_y_end])
+        fusiden.rsleep(0.2)
+        # 上拉地图
+        random_x_start = random.randint(600, 1200)
+        random_x_end = random.randint(600, 1200)
+        random_y_start = random.randint(50, 340)
+        random_y_end = random_y_start + 500
+        gf.swipe([random_x_start, random_y_start],
+                 [random_x_end, random_y_end],
+                 duration=1200, radius=0, delta=0)
 
 
-def generate_output():
+@fusiden.utils.log_func
+def output(*, task_info=None):
     """
-    生成 output 函数
+    输出
     """
-    count = 0
-
-    @fusiden.utils.log_func
-    def _output(*, task_info=None):
-        """
-        输出
-        """
-        nonlocal count
-        fusiden.rsleep(1)
-        count += 1
-        os.write(1, b"\x1b[2J\x1b[H")
-        print(f'count: {count}')
-    return _output
+    fusiden.rsleep(1)
+    namespace.count += 1
+    os.write(1, b"\x1b[2J\x1b[H")
+    print(f'count: {namespace.count}')
 
 
-def generate_repair_m16(direct_fix=False):
+@fusiden.utils.log_func
+def check_m16(*, task_info=None):
     """
-    生成 flag 控制
+    检测M16性命状态
     """
-    repair_flag = direct_fix
+    task_info['condition']['next'] = 'next' if namespace.repair_flag else [
+        'relev', 4]
 
-    @fusiden.utils.log_func
-    def _set_repair_flag(value, *, task_info=None):
-        """
-        改变 repair flag
-        """
-        nonlocal repair_flag
-        repair_flag = value
-
-    @fusiden.utils.log_func
-    def _check_m16(*, task_info=None):
-        """
-        检测M16性命状态
-        """
-        nonlocal repair_flag
-
-        task_info['condition']['next'] = 'next' if repair_flag else ['relev', 4]
-
-    return _set_repair_flag, _check_m16
-
-
-output = generate_output()
-set_repair_flag, check_m16 = generate_repair_m16(args.f)
-change_hitman, set_hitman = generate_change_hitman(args.hitman)
-set_init_flag, init_map = generate_init_map(args.i)
 
 # tasks
 chain_0_2 = list()
@@ -316,16 +250,31 @@ chain_0_2.extend(
             {
                 'type': 'break',
                 'match': r'.*LiteMessageTips',
-                'target': fusiden.pack(set_repair_flag, args=(False,)),
+                'target': fusiden.utils.gen_setattr(args=(namespace, 'repair_flag', False)),
                 'next': 'next'
             }
         ],
-        # 换人，点击队伍编成
+        # 点击队伍编成
         [
             {
                 'type': 'direct',
                 'target': fusiden.pack(gf.tap_in,
                                        args=target['battle.team.formation.tpi']),
+                'next': 'next'
+            }
+        ],
+        # 判断队中打手
+        [
+            {
+                'type': 'break',
+                'match': rf'.*character_{list(hitman_dict)[0]}',
+                'target': fusiden.utils.gen_setattr(args=(namespace, 'hitman', list(hitman_dict)[0])),
+                'next': 'next'
+            },
+            {
+                'type': 'break',
+                'match': rf'.*character_{list(hitman_dict)[1]}',
+                'target': fusiden.utils.gen_setattr(args=(namespace, 'hitman', list(hitman_dict)[1])),
                 'next': 'next'
             }
         ],
@@ -361,23 +310,16 @@ chain_0_2.extend(
             {
                 'type': 'break',
                 'match': r'.*实例化数目',
-                'target': fusiden.pack(change_hitman, delay=0.2),
-                'next': 'next'
-            }
-        ],
-        # 改变打手标记
-        [
-            {
-                'type': 'break',
-                'match': r'.*RequestChangeTeam success',
-                'target': set_hitman,
+                'target': fusiden.pack(action.tap_in_warehouse,
+                                       args=(gf, *hitman_dict[namespace.hitman]), delay=0.2),
                 'next': 'next'
             }
         ],
         # 点击返回
         [
             {
-                'type': 'direct',
+                'type': 'break',
+                'match': r'RequestChangeTeam success',
                 'target': fusiden.pack(gf.tap, args=target['global.back.tp']),
                 'next': 'next'
             }
@@ -519,7 +461,7 @@ chain_0_2.extend(
         [
             {
                 'type': 'break',
-                'match': r'.*LUA: StartPlanfalse',
+                'match': r'变更计划模式状态fastPlan',
                 'target': fusiden.pack(gf.tap,
                                        args=target['wp.tp']),
                 'next': 'next'
@@ -568,7 +510,7 @@ chain_0_2.extend(
             {
                 'type': 'break',
                 'match': r'.*\{"id":188211898,"life":(1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])\}',
-                'target': fusiden.pack(set_repair_flag, args=(True,)),
+                'target': fusiden.utils.gen_setattr(args=(namespace, 'repair_flag', True)),
                 'next': 'self'
             },
             # 防计划中断
@@ -638,7 +580,7 @@ chain_0_2.extend(
         [
             {
                 'type': 'direct',
-                'target': fusiden.pack(set_init_flag, args=(False,)),
+                'target': fusiden.utils.gen_setattr(args=(namespace, 'map_flag', False)),
                 'next': 'next'
             }
         ],
@@ -700,7 +642,7 @@ if __name__ == "__main__":
     try:
         gf.connect(device_id='39V4C19114019806')
         gf.run_task([chain_entrance, 0],
-                    stop_event=main_stop_event, fallback_timeout=15)
+                    stop_event=main_stop_event, fallback_timeout=6)
     except (fusiden.AndroidControlConnectionError,
             TypeError,
             ValueError,

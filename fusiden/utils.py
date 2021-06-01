@@ -8,7 +8,7 @@ import time
 def pack(func, *, args=None, kwargs=None, delay=0, random_ratio=0.1):
     """
     pack up function with argument
-    
+
     delay -- delay before action
     """
     if args is None:
@@ -21,6 +21,16 @@ def pack(func, *, args=None, kwargs=None, delay=0, random_ratio=0.1):
         print(f'{func.__name__} {args} {kwargs}')
         return func(task_info=task_info, *args, **kwargs)
     return wrapper
+
+
+def gen_setattr(*, args):
+    """
+    pack up setattr with argument
+    """
+    def wrapper_setattr(*, task_info=None):
+        print(f'set attr {args}')
+        return setattr(*args)
+    return wrapper_setattr
 
 
 def kill_subproc(popen):
